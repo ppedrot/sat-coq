@@ -153,12 +153,12 @@ Fixpoint reduce_aux k p :=
 match p with
 | Cst c => Cst c
 | Poly p i q =>
-  if decide (eq i) k then poly_add (reduce_aux k p) (reduce_aux k q)
+  if decide (i = k) then poly_add (reduce_aux k p) (reduce_aux k q)
   else
     let qs := reduce_aux i q in
     (* Ensure validity *)
-    if decide null qs then (reduce_aux k p)
-    else Poly (reduce_aux k p) i (reduce_aux i q)
+    if decide (null qs) then (reduce_aux k p)
+    else Poly (reduce_aux k p) i qs
 end.
 
 (* Rewrite any x_k ^ {n + 1} to x_k *)
@@ -167,8 +167,8 @@ match p with
 | Cst c => Cst c
 | Poly p i q =>
   let qs := reduce_aux i q in
-  if decide null qs then reduce p
-  else Poly (reduce p) i (reduce_aux i q)
+  if decide (null qs) then reduce p
+  else Poly (reduce p) i qs
 end.
 
 Definition boolean (var : nat -> Z) := forall n, var n = 0%Z \/ var n = 1%Z.
@@ -297,7 +297,7 @@ Fixpoint boolean_witness p :=
 match p with
 | Cst c => nil
 | Poly p i q =>
-  if decide null p then
+  if decide (null p) then
     let var := boolean_witness q in
     list_replace var i true
   else
@@ -427,7 +427,7 @@ exists var.
   assert (Hfr : linear 0 (reduce (poly_of_formula fr))).
     now destruct (poly_of_formula_valid_compat fr) as [n Hn]; apply (linear_le_compat n); [|now auto]; apply linear_reduce; auto.
   repeat rewrite <- poly_of_formula_eval_compat in Hc.
-  define (decide null p) b Hb; destruct b; tac_decide.
+  define (decide (null p)) b Hb; destruct b; tac_decide.
     now elim H; apply (null_sub_implies_eq 0 0); fold p; auto;
     apply linear_valid_aux_incl; auto.
   elim (boolean_witness_nonzero 0 p); auto.

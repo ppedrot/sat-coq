@@ -58,7 +58,7 @@ match pl with
     | Eq =>
       let qs := poly_add ql qr in
       (* Ensure validity *)
-      if decide null qs then poly_add pl pr
+      if decide (null qs) then poly_add pl pr
       else Poly (poly_add pl pr) il qs
     | Lt => Poly (poly_add pl (Poly pr ir qr)) il ql
     | Gt => Poly (F pr) ir qr
@@ -83,7 +83,7 @@ match p with
 | Poly p i q =>
   let r := poly_mul_cst v q in
   (* Ensure validity *)
-  if decide null r then poly_mul_cst v p
+  if decide (null r) then poly_mul_cst v p
   else Poly (poly_mul_cst v p) i r
 end.
 
@@ -92,10 +92,10 @@ end.
 Fixpoint poly_mul_mon k p :=
 match p with
 | Cst c =>
-  if decide null p then p
+  if decide (null p) then p
   else Poly (Cst 0) k p
 | Poly p i q =>
-  if decide (le k) i then Poly (Cst 0) k (Poly p i q)
+  if decide (k <= i) then Poly (Cst 0) k (Poly p i q)
   else Poly (poly_mul_mon k p) i (poly_mul_mon k q)
 end.
 
@@ -109,7 +109,7 @@ match pl with
     (* Multiply by a factor *)
     let qs := poly_mul ql pr in
     (* Ensure validity *)
-    if decide null qs then poly_mul pl pr
+    if decide (null qs) then poly_mul pl pr
     else poly_add (poly_mul pl pr) (poly_mul_mon il qs)
 end.
 
@@ -249,7 +249,7 @@ Section Eval.
 (* Some stuff about replacing a variable in an assignation *)
 
 Definition replace (var : nat -> Z) n z :=
-  fun m => if decide (eq n) m then z else var m.
+  fun m => if decide (n = m) then z else var m.
 
 Lemma eval_replace_compat : forall k p var n z, valid_aux k p -> n < k ->
   eval (replace var n z) p = eval var p.
@@ -359,7 +359,7 @@ Lemma same_eval_eq : forall pl pr, valid pl -> valid pr ->
 Proof.
 intros pl pr [kl Hl] [kr Hr] H.
 define (poly_add pl (poly_opp pr)) d Hd.
-define (decide null d) b Hb; destruct b; try_decide.
+define (decide (null d)) b Hb; destruct b; try_decide.
   inversion Hb; subst d.
   eapply null_sub_implies_eq; eauto.
   exfalso; destruct (not_null_nonzero d) as [var Hvar]; auto.

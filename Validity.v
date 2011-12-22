@@ -10,16 +10,16 @@ Fixpoint valid_aux_dec k p :=
 match p with
 | Cst c => true
 | Poly p i q =>
-  negb (decide null q) && decide (le k) i &&
+  negb (decide (null q)) && decide (k <= i) &&
     valid_aux_dec (S i) p && valid_aux_dec i q
 end.
 
-Instance Decidable_valid_aux : forall n, Decidable (valid_aux n) := {
-  Decidable_fun := valid_aux_dec n
+Instance Decidable_valid_aux : forall n p, Decidable (valid_aux n p) := {
+  Decidable_witness := valid_aux_dec n p
 }.
 Proof.
-abstract(intros p; revert n; induction p; simpl in *; intuition; bool; try_decide; auto).
-abstract(intros p H; induction H; simpl in *; bool; try_decide; auto).
+abstract(revert n; induction p; simpl in *; intuition; bool; try_decide; auto).
+abstract(intros H; induction H; simpl in *; bool; try_decide; auto).
 Defined.
 
 Lemma valid_aux_le_compat : forall k l p, valid_aux k p -> l <= k -> valid_aux l p.
@@ -27,12 +27,12 @@ Proof.
 intros k l p H Hl; induction H; constructor; eauto with arith.
 Qed.
 
-Instance Decidable_valid : Decidable valid := {
-  Decidable_fun := valid_aux_dec 0
+Instance Decidable_valid : forall p, Decidable (valid p) := {
+  Decidable_witness := valid_aux_dec 0 p
 }.
 Proof.
-abstract(intros p H; exists 0; apply Decidable_sound; assumption).
-abstract(intros p [n H]; apply (@Decidable_complete _ (valid_aux 0) (Decidable_valid_aux _));
+abstract(intros H; exists 0; apply Decidable_sound; assumption).
+abstract(intros [n H]; apply (@Decidable_complete (valid_aux 0 p) (Decidable_valid_aux _ _));
 apply (valid_aux_le_compat n); [auto|omega]).
 Defined.
 
@@ -46,7 +46,7 @@ Existing Instance Decidable_valid.
 
 Record polynomial := {
   p_poly : poly;
-  p_valid : decide valid p_poly = true
+  p_valid : decide (valid p_poly) = true
 }.
 
 Require Eqdep_dec.

@@ -122,8 +122,8 @@ match pl with
   | Poly pr ir qr =>
     match nat_compare il ir with
     | Eq =>
-      if decide (eq pl) pr then
-      if decide (eq ql) qr then mon_null
+      if decide (pl = pr) then
+      if decide (ql = qr) then mon_null
       else
         let d := diff_coeff ql qr in
         let m := unshift d in

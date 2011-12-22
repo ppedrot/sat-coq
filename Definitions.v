@@ -34,28 +34,28 @@ repeat match goal with
 | [ H : ?P |- _ ] => rewrite H
 end.
 
-Class Decidable {A} (P : A -> Prop) := {
-  Decidable_fun : A -> bool;
-  Decidable_sound : forall x, Decidable_fun x = true -> P x;
-  Decidable_complete : forall x, P x -> Decidable_fun x = true
+Class Decidable (P : Prop) := {
+  Decidable_witness : bool;
+  Decidable_sound : Decidable_witness = true -> P;
+  Decidable_complete : P -> Decidable_witness = true
 }.
 
-Lemma Decidable_sound_alt : forall A P (H : Decidable P) (x : A),
-   ~ P x -> Decidable_fun x = false.
+Lemma Decidable_sound_alt : forall P (H : Decidable P),
+   ~ P -> Decidable_witness = false.
 Proof.
-intros A P H x Hd.
-define (Decidable_fun x) b Hb; destruct b; auto.
+intros P H Hd.
+define (Decidable_witness) b Hb; destruct b; auto.
 elim Hd; apply Decidable_sound; auto.
 Qed.
 
-Lemma Decidable_complete_alt : forall A P (H : Decidable P) (x : A),
-  Decidable_fun x = false -> ~ P x.
+Lemma Decidable_complete_alt : forall P (H : Decidable P),
+  Decidable_witness = false -> ~ P.
 Proof.
-intros A P H x Hd Hc.
-apply Decidable_complete in Hc; congruence.
+intros P H Hd Hc; apply Decidable_complete in Hc.
+now congruence.
 Qed.
 
-Definition decide {A} P {H : Decidable P} := @Decidable_fun A P H.
+Definition decide P {H : Decidable P} := @Decidable_witness P H.
 
 (* We opacify here decide for proofs, and will make it transparent for
    reflexive tactics later on. *)
@@ -64,10 +64,10 @@ Global Opaque decide.
 
 Ltac tac_decide :=
 match goal with
-| [ H : @decide ?A ?P ?D ?x = true |- _ ] => apply (@Decidable_sound A P D) in H
-| [ H : @decide ?A ?P ?D ?x = false |- _ ] => apply (@Decidable_complete_alt A P D) in H
-| [ |- @decide ?A ?P ?D ?x = true ] => apply (@Decidable_complete A P D)
-| [ |- @decide ?A ?P ?D ?x = false ] => apply (@Decidable_sound_alt A P D)
+| [ H : @decide ?P ?D = true |- _ ] => apply (@Decidable_sound P D) in H
+| [ H : @decide ?P ?D = false |- _ ] => apply (@Decidable_complete_alt P D) in H
+| [ |- @decide ?P ?D = true ] => apply (@Decidable_complete P D)
+| [ |- @decide ?P ?D = false ] => apply (@Decidable_sound_alt P D)
 | [ |- negb ?b = true ] => apply negb_true_iff
 | [ |- negb ?b = false ] => apply negb_false_iff
 | [ H : negb ?b = true |- _ ] => apply negb_true_iff in H
@@ -77,57 +77,57 @@ end.
 Ltac try_decide := repeat tac_decide.
 
 Ltac make_decide P := match goal with
-| [ |- context [@decide ?A P ?D ?x] ] =>
+| [ |- context [@decide P ?D] ] =>
   let b := fresh "b" in
   let H := fresh "H" in
-  define (@decide A P D x) b H; destruct b; try_decide
-| [ X : context [@decide ?A P ?D ?x] |- _ ] =>
+  define (@decide P D) b H; destruct b; try_decide
+| [ X : context [@decide P ?D] |- _ ] =>
   let b := fresh "b" in
   let H := fresh "H" in
-  define (@decide A P D x) b H; destruct b; try_decide
+  define (@decide P D) b H; destruct b; try_decide
 end.
 
 Ltac case_decide := match goal with
-| [ |- context [@decide ?A ?P ?D ?x] ] =>
+| [ |- context [@decide ?P ?D] ] =>
   let b := fresh "b" in
   let H := fresh "H" in
-  define (@decide A P D x) b H; destruct b; try_decide
-| [ X : context [@decide ?A ?P ?D ?x] |- _ ] =>
+  define (@decide P D) b H; destruct b; try_decide
+| [ X : context [@decide ?P ?D] |- _ ] =>
   let b := fresh "b" in
   let H := fresh "H" in
-  define (@decide A P D x) b H; destruct b; try_decide
+  define (@decide P D) b H; destruct b; try_decide
 | [ |- context [nat_compare ?x ?y] ] =>
   destruct (nat_compare_spec x y); try (exfalso; omega)
 | [ X : context [nat_compare ?x ?y] |- _ ] =>
   destruct (nat_compare_spec x y); try (exfalso; omega)
 end.
 
-Instance Decidable_le : forall x, Decidable (le x) := {
-  Decidable_fun := leb x
+Instance Decidable_le : forall x y, Decidable (le x y) := {
+  Decidable_witness := leb x y
 }.
 Proof.
 apply leb_complete.
 apply leb_correct.
 Defined.
 
-Instance Decidable_lt : forall x, Decidable (lt x) := {
-  Decidable_fun := leb (S x)
+Instance Decidable_lt : forall x y, Decidable (lt x y) := {
+  Decidable_witness := leb (S x) y
 }.
 Proof.
 apply leb_complete.
 apply leb_correct.
 Defined.
 
-Instance Decidable_eq_nat : forall (x : nat), Decidable (eq x) := {
-  Decidable_fun := beq_nat x
+Instance Decidable_eq_nat : forall (x y : nat), Decidable (eq x y) := {
+  Decidable_witness := beq_nat x y
 }.
 Proof.
-abstract(intros y H; symmetry in H; apply beq_nat_eq in H; auto).
+abstract(intros H; symmetry in H; apply beq_nat_eq in H; auto).
 abstract(destruct 1; symmetry; apply beq_nat_refl).
 Defined.
 
-Instance Decidable_eq_Z : forall (x : Z), Decidable (eq x) := {
-  Decidable_fun := Zeq_bool x
+Instance Decidable_eq_Z : forall (x y : Z), Decidable (eq x y) := {
+  Decidable_witness := Zeq_bool x y
 }.
 Proof.
 abstract(apply Zeq_is_eq_bool).
@@ -138,31 +138,31 @@ Fixpoint beq_poly pl pr :=
 match pl with
 | Cst cl =>
   match pr with
-  | Cst cr => decide (eq cl) cr
+  | Cst cr => decide (cl = cr)
   | Poly _ _ _ => false
   end
 | Poly pl il ql =>
   match pr with
   | Cst _ => false
   | Poly pr ir qr =>
-    decide (eq il) ir && beq_poly pl pr && beq_poly ql qr
+    decide (il = ir) && beq_poly pl pr && beq_poly ql qr
   end
 end.
 
 (* We could do that with [decide equality] but dependency in proofs is heavy *)
-Instance Decidable_eq_poly : forall (p : poly), Decidable (eq p) := {
-  Decidable_fun := beq_poly p
+Instance Decidable_eq_poly : forall (p q : poly), Decidable (eq p q) := {
+  Decidable_witness := beq_poly p q
 }.
 Proof.
-abstract(induction p; intros [] ?; simpl in *; bool; try_decide;
+abstract(revert q; induction p; intros [] ?; simpl in *; bool; try_decide;
   f_equal; first [intuition congruence|auto]).
-abstract(induction p; intros [] Heq; simpl in *; bool; try_decide; intuition;
+abstract(revert q; induction p; intros [] Heq; simpl in *; bool; try_decide; intuition;
   try injection Heq; first[congruence|intuition]).
 Defined.
 
-Instance Decidable_null : Decidable null := {
-  Decidable_fun := fun p => match p with Cst 0 => true | _ => false end
+Instance Decidable_null : forall p, Decidable (null p) := {
+  Decidable_witness := match p with Cst 0 => true | _ => false end
 }.
-abstract(intros p; destruct p as [[]|]; first [discriminate|constructor]).
+abstract(destruct p as [[]|]; first [discriminate|constructor]).
 abstract(inversion 1; trivial).
 Defined.

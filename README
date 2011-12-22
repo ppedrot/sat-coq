@@ -1,0 +1,3 @@
+This is a reflexive TAUTO-SAT solver for the Coq proof assistant.
+
+It simply transforms a boolean formula into a polynomial in Z[X_i] and checks that it is equal to 1.

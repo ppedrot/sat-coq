@@ -195,16 +195,16 @@ intros k l p; revert k l; induction p; intros k l H Hle; simpl; auto.
 Qed.
 
 Lemma reduce_poly_of_formula_simpl : forall fl fr var,
-  eval (var_of_list var) (reduce (poly_of_formula fl)) = eval (var_of_list var) (reduce (poly_of_formula fr)) ->
+  simpl_eval (var_of_list var) (reduce (poly_of_formula fl)) = simpl_eval (var_of_list var) (reduce (poly_of_formula fr)) ->
   formula_eval var fl = formula_eval var fr.
 Proof.
 intros fl fr var Hrw.
+do 2 rewrite <- poly_of_formula_eval_compat.
 destruct (poly_of_formula_valid_compat fl) as [nl Hl].
 destruct (poly_of_formula_valid_compat fr) as [nr Hr].
-rewrite (reduce_eval_compat nl) in Hrw; [|assumption].
-rewrite (reduce_eval_compat nr) in Hrw; [|assumption].
-repeat rewrite poly_of_formula_eval_compat in Hrw.
-assumption.
+rewrite <- (reduce_eval_compat nl (poly_of_formula fl)); [|assumption].
+rewrite <- (reduce_eval_compat nr (poly_of_formula fr)); [|assumption].
+do 2 rewrite <- eval_simpl_eval_compat; assumption.
 Qed.
 
 (* Soundness of the method ; immediate *)
@@ -393,19 +393,35 @@ Qed.
 
 (** Retrieve DNF from a polynomial *)
 
-Fixpoint DNF p deg accu : list (list nat) :=
-match deg with
+Fixpoint DNF p maxvar : list (list (bool * nat)) :=
+match maxvar with
 | 0 => nil (* should not happen *)
-| S deg =>
+| S maxvar =>
   match p with
-  | Cst true => accu
+  | Cst true => nil
   | Cst false => cons nil nil
   | Poly p i q =>
-    let cl := DNF p deg accu in
-    let cr := DNF (poly_add p q) deg accu in
-    app cl cr
+    let cl := DNF p maxvar in
+    let cr := DNF (poly_add p q) maxvar in
+    let dl := List.map (fun l => cons (false, i) l) cl in
+    let dr := List.map (fun l => cons (true, i) l) cr in
+    List.app cl cr
   end
 end.
+
+Definition DNF_eval var l :=
+  let clause_fold (v : bool * nat) accu :=
+    let (b, i) := v in
+    let x := if b then (var i) else negb (var i) in
+    andb accu x
+  in
+  let clause_eval c :=
+    List.fold_right clause_fold  true c
+  in
+  List.fold_right (fun c accu => orb accu (clause_eval c)) false l.
+
+(* Lemma DNF_eval_compat : forall p var,
+  eval *)
 
 (* The completeness lemma *)
 

@@ -93,13 +93,33 @@ match p with
 | Poly p i q => xorb (eval var p) (andb (var i) (eval var q))
 end.
 
-Definition same_eval (p q : poly) := forall var, eval var p = eval var q.
+Fixpoint simpl_eval var p :=
+match p with
+| Cst c => c
+| Poly p i q =>
+  match p with
+  | Cst true => orb (negb (eval var q)) (negb (var i))
+  | Cst false => andb (eval var q) (var i)
+  | _ => xorb (eval var p) (andb (var i) (eval var q))
+  end
+end.
 
 (* Useful simple properties *)
 
 Lemma eval_null_zero : forall p var, null p -> eval var p = false.
 Proof.
 intros p var []; reflexivity.
+Qed.
+
+Lemma eval_simpl_eval_compat : forall p var,
+  simpl_eval var p = eval var p.
+Proof.
+intros p var; induction p as [c|p' i q']; simpl.
+  now reflexivity.
+  destruct p' as [[|]|p' j q'']; simpl;
+  solve [match goal with [ |- context [?b1 && ?b2] ] =>
+    destruct b1; destruct b2; reflexivity
+  end|reflexivity].
 Qed.
 
 Lemma eval_extensional_eq_compat : forall p var1 var2,

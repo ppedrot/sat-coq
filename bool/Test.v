@@ -8,6 +8,8 @@ Goal forall a b c d e f g,
   (a && b && c && d && negb e && f && g) ||
   (a && b && c && d && e && negb f && g) ||
   (a && b && c && d && e && f && negb g) = true.
+Proof.
+intros; bool_simpl.
 
 
 Goal forall a b c : bool, c || a = negb (b && negb b && (a || negb a)).

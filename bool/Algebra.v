@@ -9,12 +9,12 @@ Inductive poly :=
 Inductive null : poly -> Prop :=
 | null_intro : null (Cst false).
 
-Inductive valid_aux : nat -> poly -> Prop :=
-| valid_cst : forall k c, valid_aux k (Cst c)
+Inductive valid : nat -> poly -> Prop :=
+| valid_cst : forall k c, valid k (Cst c)
 | valid_poly : forall k p i q,
-  k <= i -> ~ null q -> valid_aux (S i) p -> valid_aux i q -> valid_aux k (Poly p i q).
+  k <= i -> ~ null q -> valid (S i) p -> valid i q -> valid k (Poly p i q).
 
-Hint Constructors valid_aux.
+Hint Constructors valid.
 
 Fixpoint beq_poly pl pr :=
 match pl with
@@ -52,31 +52,31 @@ Defined.
 End Polynomial.
 
 Local Existing Instance Decidable_null.
-Local Hint Constructors valid_aux.
+Local Hint Constructors valid.
 
 Section Validity.
 
 (* Decision procedure of validity *)
 
-Hint Constructors valid_aux.
+Hint Constructors valid.
 
-Fixpoint valid_aux_dec k p :=
+Fixpoint valid_dec k p :=
 match p with
 | Cst c => true
 | Poly p i q =>
   negb (decide (null q)) && decide (k <= i) &&
-    valid_aux_dec (S i) p && valid_aux_dec i q
+    valid_dec (S i) p && valid_dec i q
 end.
 
-Instance Decidable_valid_aux : forall n p, Decidable (valid_aux n p) := {
-  Decidable_witness := valid_aux_dec n p
+Instance Decidable_valid : forall n p, Decidable (valid n p) := {
+  Decidable_witness := valid_dec n p
 }.
 Proof.
 abstract(revert n; induction p; simpl in *; intuition; bool; try_decide; auto).
 abstract(intros H; induction H; simpl in *; bool; try_decide; auto).
 Defined.
 
-Lemma valid_aux_le_compat : forall k l p, valid_aux k p -> l <= k -> valid_aux l p.
+Lemma valid_le_compat : forall k l p, valid k p -> l <= k -> valid l p.
 Proof.
 intros k l p H Hl; induction H; constructor; eauto with arith.
 Qed.
@@ -109,7 +109,7 @@ intros p var1 var2 H; induction p; simpl; try_rewrite; auto.
 Qed.
 
 Lemma eval_suffix_compat : forall k p var1 var2,
-  (forall i, k <= i -> var1 i = var2 i) -> valid_aux k p ->
+  (forall i, k <= i -> var1 i = var2 i) -> valid k p ->
   eval var1 p = eval var2 p.
 Proof.
 intros k p var1 var2 Hvar Hv; revert var1 var2 Hvar.
@@ -255,24 +255,24 @@ match goal with
 end.
 Hint Resolve le_min_r le_min_l.
 
-Lemma poly_add_valid_aux_compat : forall kl kr pl pr, valid_aux kl pl -> valid_aux kr pr ->
-  valid_aux (min kl kr) (poly_add pl pr).
+Lemma poly_add_valid_compat : forall kl kr pl pr, valid kl pl -> valid kr pr ->
+  valid (min kl kr) (poly_add pl pr).
 Proof.
 intros kl kr pl pr Hl Hr; revert kr pr Hr; induction Hl; intros kr pr Hr; simpl.
-  eapply valid_aux_le_compat; [clear k|apply le_min_r].
+  eapply valid_le_compat; [clear k|apply le_min_r].
   now induction Hr; auto.
   assert (Hle : min k kr <= min i kr).
     apply min_case_strong; intros; apply min_case_strong; intros; auto; omega.
-  apply (valid_aux_le_compat (min i kr)); auto.
+  apply (valid_le_compat (min i kr)); auto.
   clear - IHHl1 IHHl2 Hl2 Hr H0; induction Hr.
     constructor; auto.
       now rewrite <- (min_id (S i)); intuition.
     destruct (nat_compare_spec i i0); subst; try case_decide; repeat (constructor; intuition).
-        eapply valid_aux_le_compat; eauto; instantiate; rewrite min_id; auto.
-        now eapply valid_aux_le_compat; eauto; instantiate; rewrite min_id; auto.
-        now eapply valid_aux_le_compat; eauto; instantiate; rewrite min_id; auto.
-        apply (valid_aux_le_compat (min (S i) i0)); intuition.
-        apply (valid_aux_le_compat (min i (S i0))); intuition.
+        eapply valid_le_compat; eauto; instantiate; rewrite min_id; auto.
+        now eapply valid_le_compat; eauto; instantiate; rewrite min_id; auto.
+        now eapply valid_le_compat; eauto; instantiate; rewrite min_id; auto.
+        apply (valid_le_compat (min (S i) i0)); intuition.
+        apply (valid_le_compat (min i (S i0))); intuition.
 Qed.
 
 Lemma poly_opp_null_compat : forall p, null (poly_opp p) -> null p.
@@ -281,16 +281,16 @@ intros p; induction p; simpl; inversion 1 as [Hn].
 constructor.
 Qed.
 
-Lemma poly_opp_valid_aux_compat : forall k p, valid_aux k p -> valid_aux k (poly_opp p).
+Lemma poly_opp_valid_compat : forall k p, valid k p -> valid k (poly_opp p).
 Proof.
 intros k p H; induction H; simpl; constructor; auto.
 Qed.
 
-Lemma poly_mul_cst_valid_aux_compat : forall k v p, valid_aux k p -> valid_aux k (poly_mul_cst v p).
+Lemma poly_mul_cst_valid_compat : forall k v p, valid k p -> valid k (poly_mul_cst v p).
 Proof.
 intros k v p H; induction H; simpl; [now auto|].
 case_decide; [|now auto].
-eapply (valid_aux_le_compat (S i)); now auto.
+eapply (valid_le_compat (S i)); now auto.
 Qed.
 
 Lemma poly_mul_mon_null_compat : forall i p, null (poly_mul_mon i p) -> null p.
@@ -298,29 +298,29 @@ Proof.
 intros i p; induction p; simpl; case_decide; simpl; inversion 1; intuition.
 Qed.
 
-Lemma poly_mul_mon_valid_aux_compat : forall k i p, valid_aux k p -> valid_aux (min i k) (poly_mul_mon i p).
+Lemma poly_mul_mon_valid_compat : forall k i p, valid k p -> valid (min i k) (poly_mul_mon i p).
 Proof.
 intros k i p H; induction H; simpl; case_decide; intuition.
-apply (valid_aux_le_compat i); auto; constructor; intuition.
+apply (valid_le_compat i); auto; constructor; intuition.
 match goal with [ H : null ?p |- _ ] => solve[inversion H] end.
-apply (valid_aux_le_compat k); auto; constructor; intuition.
+apply (valid_le_compat k); auto; constructor; intuition.
   assert (X := poly_mul_mon_null_compat); intuition eauto.
   cutrewrite <- (min i (S i0) = S i0); intuition.
   cutrewrite <- (min i i0 = i0); intuition.
 Qed.
 
-Lemma poly_mul_valid_aux_compat : forall kl kr pl pr, valid_aux kl pl -> valid_aux kr pr ->
-  valid_aux (min kl kr) (poly_mul pl pr).
+Lemma poly_mul_valid_compat : forall kl kr pl pr, valid kl pl -> valid kr pr ->
+  valid (min kl kr) (poly_mul pl pr).
 Proof.
 intros kl kr pl pr Hl Hr; revert kr pr Hr.
 induction Hl; intros kr pr Hr; simpl.
-  apply poly_mul_cst_valid_aux_compat; auto.
-  apply (valid_aux_le_compat kr); now auto.
-  apply (valid_aux_le_compat (min (min (S i) kr) (min i (min i kr)))).
+  apply poly_mul_cst_valid_compat; auto.
+  apply (valid_le_compat kr); now auto.
+  apply (valid_le_compat (min (min (S i) kr) (min i (min i kr)))).
     case_decide.
-      apply (valid_aux_le_compat (min (S i) kr)); now auto.
-      apply poly_add_valid_aux_compat; auto.
-      apply poly_mul_mon_valid_aux_compat; intuition.
+      apply (valid_le_compat (min (S i) kr)); now auto.
+      apply poly_add_valid_compat; auto.
+      apply poly_mul_mon_valid_compat; intuition.
     repeat apply min_case_strong; omega.
 Qed.
 
@@ -331,7 +331,7 @@ Section Eval.
 Definition replace (var : nat -> bool) n z :=
   fun m => if decide (n = m) then z else var m.
 
-Lemma eval_replace_compat : forall k p var n z, valid_aux k p -> n < k ->
+Lemma eval_replace_compat : forall k p var n z, valid k p -> n < k ->
   eval (replace var n z) p = eval var p.
 Proof.
 intros k p var n z H Hlt; unfold replace.

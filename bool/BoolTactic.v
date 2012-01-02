@@ -101,15 +101,15 @@ intros var f; induction f; simpl poly_of_formula; simpl formula_eval; auto.
 Qed.
 
 Hint Extern 5 => change 0 with (min 0 0).
-Local Hint Resolve poly_add_valid_aux_compat poly_mul_valid_aux_compat poly_opp_valid_aux_compat.
-Local Hint Constructors valid_aux.
+Local Hint Resolve poly_add_valid_compat poly_mul_valid_compat poly_opp_valid_compat.
+Local Hint Constructors valid.
 
 (* Compatibility with validity *)
 
-Lemma poly_of_formula_valid_compat : forall f, exists n, valid_aux n (poly_of_formula f).
+Lemma poly_of_formula_valid_compat : forall f, exists n, valid n (poly_of_formula f).
 Proof.
 intros f; exists 0; induction f; simpl; auto 6.
-  apply (valid_aux_le_compat n); [repeat constructor|]; try omega.
+  apply (valid_le_compat n); [repeat constructor|]; try omega.
   now intros Hc; inversion Hc.
 Qed.
 
@@ -150,7 +150,7 @@ match p with
   else Poly (reduce p) i qs
 end.
 
-Lemma reduce_aux_eval_compat : forall k p var, valid_aux k p ->
+Lemma reduce_aux_eval_compat : forall k p var, valid k p ->
   (var k && eval var (reduce_aux k p) = var k && eval var p)%Z.
 Proof.
 intros k p var; revert k; induction p; intros k Hv; simpl; auto.
@@ -160,22 +160,22 @@ inversion Hv; case_decide; subst.
   destruct (var k); ring_simplify; [|now auto].
   rewrite <- (andb_true_l (eval var p1)), <- (andb_true_l (eval var p2)).
   rewrite <- IHp2; auto; rewrite <- IHp1; [ring|].
-  apply (valid_aux_le_compat (S k)); now auto.
+  apply (valid_le_compat (S k)); now auto.
   remember (var k) as b; destruct b; ring_simplify; [|now auto].
   case_decide; simpl.
     rewrite <- (IHp2 n); [inversion H|now auto]; simpl.
     replace (eval var p1) with (var k && eval var p1)%Z by (rewrite <- Heqb; ring); rewrite <- (IHp1 k).
       rewrite <- Heqb; ring.
-      now apply (valid_aux_le_compat (S n)); auto.
+      now apply (valid_le_compat (S n)); auto.
     rewrite (IHp2 n); [|now auto].
     replace (eval var p1) with (var k && eval var p1)%Z by (rewrite <- Heqb; ring).
     rewrite <- (IHp1 k); [rewrite <- Heqb; ring|].
-    apply (valid_aux_le_compat (S n)); auto.
+    apply (valid_le_compat (S n)); auto.
 Qed.
 
 (* Reduction preserves evaluation by boolean assignations *)
 
-Lemma reduce_eval_compat : forall k p var, valid_aux k p ->
+Lemma reduce_eval_compat : forall k p var, valid k p ->
   eval var (reduce p) = eval var p.
 Proof.
 intros k p var H; induction H; simpl; auto.
@@ -184,14 +184,14 @@ case_decide; try_rewrite; simpl.
   repeat rewrite reduce_aux_eval_compat; try_rewrite; now auto.
 Qed.
 
-Lemma reduce_aux_le_compat : forall k l p, valid_aux (S k) p -> l <= k ->
+Lemma reduce_aux_le_compat : forall k l p, valid (S k) p -> l <= k ->
   reduce_aux l p = reduce_aux k p.
 Proof.
 intros k l p; revert k l; induction p; intros k l H Hle; simpl; auto.
   inversion H; subst; repeat case_decide; subst; try (exfalso; omega).
-    now apply IHp1; [|now auto]; eapply valid_aux_le_compat; eauto.
+    now apply IHp1; [|now auto]; eapply valid_le_compat; eauto.
     f_equal; apply IHp1; auto.
-    now eapply valid_aux_le_compat; eauto.
+    now eapply valid_le_compat; eauto.
 Qed.
 
 Lemma reduce_poly_of_formula_simpl : forall fl fr var,
@@ -293,10 +293,10 @@ Inductive linear : nat -> poly -> Prop :=
 
 Hint Constructors linear.
 
-Lemma linear_valid_aux_incl : forall k p, linear k p -> valid_aux k p.
+Lemma linear_valid_incl : forall k p, linear k p -> valid k p.
 Proof.
 intros k p H; induction H; constructor; auto.
-eapply valid_aux_le_compat; eauto.
+eapply valid_le_compat; eauto.
 Qed.
 
 (* The witness is correct only if the polynomial is linear *)
@@ -312,13 +312,13 @@ intros k p H Hp; induction H; simpl.
     let T := type of Hc in match T with (xorb false (?z && ?e) = false) => replace z with true in Hc; [ring_simplify in Hc|] end.
     erewrite (eval_extensional_eq_compat _ _ (replace _ _ _)) in Hc; [|now apply list_replace_replace_compat].
     rewrite (eval_replace_compat (S i)) in Hc; intuition.
-    apply linear_valid_aux_incl; now auto.
+    apply linear_valid_incl; now auto.
     rewrite list_replace_replace_compat; unfold replace; case_decide; [now auto|exfalso; omega].
   intros Hc.
     let T := type of Hc in match T with (xorb ?p (?z && ?e) = false)%Z => replace z with false in Hc; [ring_simplify in Hc|] end.
     erewrite (eval_extensional_eq_compat _ _ (replace _ _ _)) in Hc; [|now apply list_replace_replace_compat].
     rewrite (eval_replace_compat (S i)) in Hc; intuition.
-    apply linear_valid_aux_incl; now auto.
+    apply linear_valid_incl; now auto.
     rewrite list_replace_replace_compat; unfold replace; case_decide; [now auto|exfalso; omega].
 Qed.
 
@@ -366,22 +366,22 @@ Qed.
 
 (* Reduce projects valid polynomials into linear ones *)
 
-Lemma linear_reduce_aux : forall i p, valid_aux i p -> linear (S i) (reduce_aux i p).
+Lemma linear_reduce_aux : forall i p, valid i p -> linear (S i) (reduce_aux i p).
 Proof.
 intros i p; revert i; induction p; intros i Hp; simpl.
   constructor.
   inversion Hp; subst; case_decide; subst.
     rewrite <- (min_id (S i)); apply poly_add_linear_compat.
-      apply IHp1; eapply valid_aux_le_compat; eauto.
+      apply IHp1; eapply valid_le_compat; eauto.
       now intuition.
   case_decide.
-    apply IHp1; eapply valid_aux_le_compat; eauto.
+    apply IHp1; eapply valid_le_compat; eauto.
     constructor; try omega; auto.
     erewrite (reduce_aux_le_compat n); auto.
-    now apply IHp1; eapply valid_aux_le_compat; eauto.
+    now apply IHp1; eapply valid_le_compat; eauto.
 Qed.
 
-Lemma linear_reduce : forall k p, valid_aux k p -> linear k (reduce p).
+Lemma linear_reduce : forall k p, valid k p -> linear k (reduce p).
 Proof.
 intros k p H; induction H; simpl.
   now constructor.
@@ -390,6 +390,22 @@ intros k p H; induction H; simpl.
     constructor; auto.
     apply linear_reduce_aux; auto.
 Qed.
+
+(** Retrieve DNF from a polynomial *)
+
+Fixpoint DNF p deg accu : list (list nat) :=
+match deg with
+| 0 => nil (* should not happen *)
+| S deg =>
+  match p with
+  | Cst true => accu
+  | Cst false => cons nil nil
+  | Poly p i q =>
+    let cl := DNF p deg accu in
+    let cr := DNF (poly_add p q) deg accu in
+    app cl cr
+  end
+end.
 
 (* The completeness lemma *)
 
@@ -409,7 +425,7 @@ exists var.
   repeat rewrite <- poly_of_formula_eval_compat in Hc.
   define (decide (null p)) b Hb; destruct b; tac_decide.
     now elim H; apply (null_sub_implies_eq 0 0); fold p; auto;
-    apply linear_valid_aux_incl; auto.
+    apply linear_valid_incl; auto.
   elim (boolean_witness_nonzero 0 p); auto.
     unfold p; rewrite <- (min_id 0); apply poly_add_linear_compat; try apply poly_opp_linear_compat; now auto.
     unfold p at 2; rewrite poly_add_compat, poly_opp_compat.

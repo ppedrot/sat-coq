@@ -51,10 +51,11 @@ Defined.
 
 End Polynomial.
 
-Local Existing Instance Decidable_null.
 Local Hint Constructors valid.
 
 Section Validity.
+
+Existing Instance Decidable_null.
 
 (* Decision procedure of validity *)
 
@@ -142,7 +143,9 @@ End Evaluation.
 
 Section Algebra.
 
-Require Import MinMax.
+Require Import NPeano.
+
+Existing Instance Decidable_null.
 
 (* Addition of polynomials *)
 
@@ -269,28 +272,28 @@ Qed.
 Hint Extern 5 =>
 match goal with
 | [ |- max ?x ?y <= ?z ] =>
-  apply max_case_strong; intros; omega
+  apply Nat.max_case_strong; intros; omega
 | [ |- ?z <= max ?x ?y ] =>
-  apply max_case_strong; intros; omega
+  apply Nat.max_case_strong; intros; omega
 end.
-Hint Resolve le_max_r le_max_l.
+Hint Resolve Nat.le_max_r Nat.le_max_l.
 
 Lemma poly_add_valid_compat : forall kl kr pl pr, valid kl pl -> valid kr pr ->
   valid (max kl kr) (poly_add pl pr).
 Proof.
 intros kl kr pl pr Hl Hr; revert kr pr Hr; induction Hl; intros kr pr Hr; simpl.
-  eapply valid_le_compat; [clear k|apply le_max_r].
+  eapply valid_le_compat; [clear k|apply Nat.le_max_r].
   now induction Hr; auto.
   assert (Hle : max (S i) kr <= max k kr).
-    apply max_case_strong; intros; apply max_case_strong; intros; auto; omega.
+    apply Nat.max_case_strong; intros; apply Nat.max_case_strong; intros; auto; omega.
   apply (valid_le_compat (max (S i) kr)); [|assumption].
   clear - IHHl1 IHHl2 Hl2 Hr H0; induction Hr.
     constructor; auto.
-      now rewrite <- (max_id i); intuition.
+      now rewrite <- (Nat.max_id i); intuition.
     destruct (nat_compare_spec i i0); subst; try case_decide; repeat (constructor; intuition).
-      now eapply valid_le_compat; eauto; instantiate; rewrite max_id; auto.
-      now eapply valid_le_compat; eauto; instantiate; rewrite max_id; auto.
-      now eapply valid_le_compat; eauto; instantiate; rewrite max_id; auto.
+      now apply (valid_le_compat (max i0 i0)); [now auto|]; rewrite Nat.max_id; auto.
+      now apply (valid_le_compat (max i0 i0)); [now auto|]; rewrite Nat.max_id; auto.
+      now apply (valid_le_compat (max (S i0) (S i0))); [now auto|]; rewrite Nat.max_id; auto.
       now apply (valid_le_compat (max (S i) i0)); intuition.
       now apply (valid_le_compat (max i (S i0))); intuition.
 Qed.
@@ -341,7 +344,7 @@ induction Hl; intros kr pr Hr; simpl.
       now apply (valid_le_compat (max i kr)); auto.
       apply poly_add_valid_compat; auto.
       now apply poly_mul_mon_valid_compat; intuition.
-    repeat apply max_case_strong; omega.
+    repeat apply Nat.max_case_strong; omega.
 Qed.
 
 Section Eval.

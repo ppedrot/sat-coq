@@ -11,8 +11,9 @@ Goal forall a b c d e f g,
   (a && b && c && d && e && f && g)
   = true.
 Proof.
-Print BoolTactic.
-intros; bool_reify.
+intros.
+ bool_reify.
+vm_compute.
  apply reduce_poly_of_formula_sound; vm_compute; reflexivity.
 Admitted.
 

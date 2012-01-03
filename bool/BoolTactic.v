@@ -1,4 +1,4 @@
-Require Import Definitions Algebra MinMax.
+Require Import Definitions Algebra NPeano.
 
 Section Bool.
 
@@ -128,6 +128,8 @@ Qed.
 End Translation.
 
 Section Completeness.
+
+Existing Instance Decidable_null.
 
 (* Remove the multiple occurences of monomials x_k *)
 Fixpoint reduce_aux k p :=
@@ -335,11 +337,11 @@ Hint Extern 5 => change 0 with (min 0 0).
 Hint Extern 5 =>
 match goal with
 | [ |- max ?x ?y <= ?z ] =>
-  apply max_case_strong; intros; omega
+  apply Nat.max_case_strong; intros; omega
 | [ |- ?z <= max ?x ?y ] =>
-  apply max_case_strong; intros; omega
+  apply Nat.max_case_strong; intros; omega
 end.
-Hint Resolve le_max_r le_max_l.
+Hint Resolve Nat.le_max_r Nat.le_max_l.
 
 (* Compatibility of linearity wrt to linear operations *)
 
@@ -347,18 +349,18 @@ Lemma poly_add_linear_compat : forall kl kr pl pr, linear kl pl -> linear kr pr 
   linear (max kl kr) (poly_add pl pr).
 Proof.
 intros kl kr pl pr Hl; revert kr pr; induction Hl; intros kr pr Hr; simpl.
-  apply (linear_le_compat kr); [|apply max_case_strong; omega].
+  apply (linear_le_compat kr); [|apply Nat.max_case_strong; omega].
   now induction Hr; constructor; auto.
-  apply (linear_le_compat (max kr (S i))); [|repeat apply max_case_strong; omega].
+  apply (linear_le_compat (max kr (S i))); [|repeat apply Nat.max_case_strong; omega].
   induction Hr; simpl.
     constructor; auto.
-    replace i with (max i i) by (apply max_id); apply IHHl1; now constructor.
+    replace i with (max i i) by (apply Nat.max_id); apply IHHl1; now constructor.
     destruct (nat_compare_spec i i0); subst; try case_decide; repeat (constructor; intuition).
-        eapply linear_le_compat; eauto; instantiate; rewrite max_id; now auto.
-        now eapply linear_le_compat; eauto; instantiate; rewrite max_id; auto.
-        now eapply linear_le_compat; eauto; instantiate; rewrite max_id; auto.
-        now apply (linear_le_compat (max i0 (S i))); intuition.
-        now apply (linear_le_compat (max i (S i0))); intuition.
+      now apply (linear_le_compat (max i0 i0)); [now auto|]; rewrite Nat.max_id; auto.
+      now apply (linear_le_compat (max i0 i0)); [now auto|]; rewrite Nat.max_id; auto.
+      now apply (linear_le_compat (max i0 i0)); [now auto|]; rewrite Nat.max_id; auto.
+      now apply (linear_le_compat (max i0 (S i))); intuition.
+      now apply (linear_le_compat (max i (S i0))); intuition.
 Qed.
 
 Lemma poly_opp_linear_compat : forall k p, linear k p -> linear k (poly_opp p).
@@ -373,7 +375,7 @@ Proof.
 intros i p; revert i; induction p; intros i Hp; simpl.
   constructor.
   inversion Hp; subst; case_decide; subst.
-    rewrite <- (max_id i) at 1; apply poly_add_linear_compat.
+    rewrite <- (Nat.max_id i) at 1; apply poly_add_linear_compat.
       apply IHp1; eapply valid_le_compat; eauto.
       now intuition.
   case_decide.

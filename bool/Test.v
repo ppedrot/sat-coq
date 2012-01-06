@@ -16,13 +16,14 @@ Proof.
 intros; bool_ring.
  bool_reify.
 vm_compute.
- apply reduce_poly_of_formula_sound; vm_compute; reflexivity.
-Admitted.
+Abort.
 
-Goal forall a b c : bool, c || a = negb (b && negb b && (a || negb a)).
+Goal forall a b c : bool, c || a || negb a = a || (negb a).
 Proof.
 intros; bool_ring.
-Admitted.
+Qed.
+
+Print Unnamed_thm.
 
 Goal forall a b, (a || negb b) && (negb a || b) = true.
 intros; bool_ring.

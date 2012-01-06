@@ -19,7 +19,7 @@ Inductive null : poly -> Prop :=
 
 (** Polynomials satisfy a uniqueness condition whenever they are valid. A 
   polynomial [p] satisfies [valid n p] whenever it is well-formed and each of 
-  its variable indices are < [n]. *)
+  its variable indices is < [n]. *)
 
 Inductive valid : nat -> poly -> Prop :=
 | valid_cst : forall k c, valid k (Cst c)
@@ -75,10 +75,12 @@ abstract(destruct p as [[]|]; first [discriminate|constructor]).
 abstract(inversion 1; trivial).
 Defined.
 
-Fixpoint eval (var : nat -> _) (p : poly) :=
+Fixpoint eval var (p : poly) :=
 match p with
 | Cst c => c
-| Poly p i q => xorb (eval var p) (andb (var i) (eval var q))
+| Poly p i q =>
+  let vi := List.nth i var false in
+  xorb (eval var p) (andb vi (eval var q))
 end.
 
 Fixpoint valid_dec k p :=
@@ -96,6 +98,8 @@ Proof.
 abstract(revert n; induction p; simpl in *; intuition; bool; try_decide; auto).
 abstract(intros H; induction H; simpl in *; bool; try_decide; auto).
 Defined.
+
+(** Basic algebra *)
 
 (* Addition of polynomials *)
 
@@ -160,19 +164,56 @@ match pl with
     else poly_add (poly_mul pl pr) (poly_mul_mon il qs)
 end.
 
-End Computational.
+(** Quotienting a polynomial by the relation X_i^2 ~ X_i *)
 
-Local Hint Constructors valid.
+(* Remove the multiple occurences of monomials x_k *)
+
+Fixpoint reduce_aux k p :=
+match p with
+| Cst c => Cst c
+| Poly p i q =>
+  if decide (i = k) then poly_add (reduce_aux k p) (reduce_aux k q)
+  else
+    let qs := reduce_aux i q in
+    (* Ensure validity *)
+    if decide (null qs) then (reduce_aux k p)
+    else Poly (reduce_aux k p) i qs
+end.
+
+(* Rewrite any x_k ^ {n + 1} to x_k *)
+
+Fixpoint reduce p :=
+match p with
+| Cst c => Cst c
+| Poly p i q =>
+  let qs := reduce_aux i q in
+  (* Ensure validity *)
+  if decide (null qs) then reduce p
+  else Poly (reduce p) i qs
+end.
+
+End Computational.
 
 Section Validity.
 
 (* Decision procedure of validity *)
 
-Hint Constructors valid.
+Hint Constructors valid linear.
 
 Lemma valid_le_compat : forall k l p, valid k p -> k <= l -> valid l p.
 Proof.
 intros k l p H Hl; induction H; constructor; eauto with arith.
+Qed.
+
+Lemma linear_le_compat : forall k l p, linear k p -> k <= l -> linear l p.
+Proof.
+intros k l p H; revert l; induction H; intuition.
+Qed.
+
+Lemma linear_valid_incl : forall k p, linear k p -> valid k p.
+Proof.
+intros k p H; induction H; constructor; auto.
+eapply valid_le_compat; eauto.
 Qed.
 
 End Validity.
@@ -187,13 +228,13 @@ intros p var []; reflexivity.
 Qed.
 
 Lemma eval_extensional_eq_compat : forall p var1 var2,
-  (forall x, var1 x = var2 x) -> eval var1 p = eval var2 p.
+  (forall x, List.nth x var1 false = List.nth x var2 false) -> eval var1 p = eval var2 p.
 Proof.
 intros p var1 var2 H; induction p; simpl; try_rewrite; auto.
 Qed.
 
 Lemma eval_suffix_compat : forall k p var1 var2,
-  (forall i, i < k -> var1 i = var2 i) -> valid k p ->
+  (forall i, i < k -> List.nth i var1 false = List.nth i var2 false) -> valid k p ->
   eval var1 p = eval var2 p.
 Proof.
 intros k p var1 var2 Hvar Hv; revert var1 var2 Hvar.
@@ -230,12 +271,12 @@ Lemma poly_mul_cst_compat : forall v p var,
 Proof.
 intros v p; induction p; intros var; simpl; [ring|].
 case_decide; simpl; try_rewrite; [ring_simplify|ring].
-replace (v && var n && eval var p2)%Z with (var n && (v && eval var p2))%Z by ring.
+replace (v && List.nth n var false && eval var p2)%Z with (List.nth n var false && (v && eval var p2))%Z by ring.
 rewrite <- IHp2; inversion H; simpl; ring.
 Qed.
 
 Lemma poly_mul_mon_compat : forall i p var,
-  eval var (poly_mul_mon i p) = (var i && eval var p)%Z.
+  eval var (poly_mul_mon i p) = (List.nth i var false && eval var p)%Z.
 Proof.
 intros i p var; induction p; simpl; case_decide; simpl; try_rewrite; try ring.
 inversion H; ring.
@@ -249,13 +290,11 @@ intros pl; induction pl; intros pr var; simpl.
   apply poly_mul_cst_compat.
   case_decide; simpl.
     rewrite IHpl1; ring_simplify.
-    replace (eval var pr && var n && eval var pl2)%Z
-    with (var n && (eval var pl2 && eval var pr))%Z by ring.
+    replace (eval var pr && List.nth n var false && eval var pl2)%Z
+    with (List.nth n var false && (eval var pl2 && eval var pr))%Z by ring.
     now rewrite <- IHpl2; inversion H; simpl; ring.
     rewrite poly_add_compat, poly_mul_mon_compat, IHpl1, IHpl2; ring.
 Qed.
-
-(* Compatibility with validity *)
 
 Hint Extern 5 =>
 match goal with
@@ -265,6 +304,10 @@ match goal with
   apply Nat.max_case_strong; intros; omega
 end.
 Hint Resolve Nat.le_max_r Nat.le_max_l.
+
+Hint Constructors valid linear.
+
+(* Compatibility of validity w.r.t algebraic operations *)
 
 Lemma poly_add_valid_compat : forall kl kr pl pr, valid kl pl -> valid kr pr ->
   valid (max kl kr) (poly_add pl pr).
@@ -324,34 +367,101 @@ induction Hl; intros kr pr Hr; simpl.
     repeat apply Nat.max_case_strong; omega.
 Qed.
 
+(* Compatibility of linearity wrt to linear operations *)
+
+Lemma poly_add_linear_compat : forall kl kr pl pr, linear kl pl -> linear kr pr ->
+  linear (max kl kr) (poly_add pl pr).
+Proof.
+intros kl kr pl pr Hl; revert kr pr; induction Hl; intros kr pr Hr; simpl.
+  apply (linear_le_compat kr); [|apply Nat.max_case_strong; omega].
+  now induction Hr; constructor; auto.
+  apply (linear_le_compat (max kr (S i))); [|repeat apply Nat.max_case_strong; omega].
+  induction Hr; simpl.
+    constructor; auto.
+    replace i with (max i i) by (apply Nat.max_id); apply IHHl1; now constructor.
+    destruct (nat_compare_spec i i0); subst; try case_decide; repeat (constructor; intuition).
+      now apply (linear_le_compat (max i0 i0)); [now auto|]; rewrite Nat.max_id; auto.
+      now apply (linear_le_compat (max i0 i0)); [now auto|]; rewrite Nat.max_id; auto.
+      now apply (linear_le_compat (max i0 i0)); [now auto|]; rewrite Nat.max_id; auto.
+      now apply (linear_le_compat (max i0 (S i))); intuition.
+      apply (linear_le_compat (max i (S i0))); intuition.
+Qed.
+
 End Algebra.
 
-Section Eval.
+Section Reduce.
 
-(* Some stuff about replacing a variable in an assignation *)
+(* A stronger version of the next lemma *)
 
-Definition replace (var : nat -> bool) n z :=
-  fun m => if decide (n = m) then z else var m.
-
-Lemma eval_replace_compat : forall k p var n z, valid k p -> k <= n ->
-  eval (replace var n z) p = eval var p.
+Lemma reduce_aux_eval_compat : forall k p var, valid (S k) p ->
+  (List.nth k var false && eval var (reduce_aux k p) = List.nth k var false && eval var p).
 Proof.
-intros k p var n z H Hlt; unfold replace.
-rewrite <- (eval_suffix_compat k _ var); auto.
-intros; case_decide; [exfalso; omega|reflexivity].
+intros k p var; revert k; induction p; intros k Hv; simpl; auto.
+inversion Hv; case_decide; subst.
+  rewrite poly_add_compat; ring_simplify.
+  specialize (IHp1 k); specialize (IHp2 k).
+  destruct (List.nth k var false); ring_simplify; [|now auto].
+  rewrite <- (andb_true_l (eval var p1)), <- (andb_true_l (eval var p2)).
+  rewrite <- IHp2; auto; rewrite <- IHp1; [ring|].
+  apply (valid_le_compat k); now auto.
+  remember (List.nth k var false) as b; destruct b; ring_simplify; [|now auto].
+  case_decide; simpl.
+    rewrite <- (IHp2 n); [inversion H|now auto]; simpl.
+    replace (eval var p1) with (List.nth k var false && eval var p1)%Z by (rewrite <- Heqb; ring); rewrite <- (IHp1 k).
+      rewrite <- Heqb; ring.
+      now apply (valid_le_compat n); [auto|omega].
+    rewrite (IHp2 n); [|now auto].
+    replace (eval var p1) with (List.nth k var false && eval var p1)%Z by (rewrite <- Heqb; ring).
+    rewrite <- (IHp1 k); [rewrite <- Heqb; ring|].
+    apply (valid_le_compat n); [auto|omega].
 Qed.
 
-Lemma replace_idem : forall var n z1 z2 m,
-  replace (replace var n z2) n z1 m = replace var n z1 m.
+(* Reduction preserves evaluation by boolean assignations *)
+
+Lemma reduce_eval_compat : forall k p var, valid k p ->
+  eval var (reduce p) = eval var p.
 Proof.
-intros; unfold replace; case_decide; auto.
+intros k p var H; induction H; simpl; auto.
+case_decide; try_rewrite; simpl.
+  rewrite <- reduce_aux_eval_compat; auto; inversion H3; simpl; ring.
+  repeat rewrite reduce_aux_eval_compat; try_rewrite; now auto.
 Qed.
 
-Lemma eval_replace_idem : forall p var n z1 z2,
-  eval (replace (replace var n z2) n z1) p = eval (replace var n z1) p.
+Lemma reduce_aux_le_compat : forall k l p, valid k p -> k <= l ->
+  reduce_aux l p = reduce_aux k p.
 Proof.
-intros p var n z1 z2; induction p; simpl; try_rewrite; auto.
-repeat rewrite replace_idem; auto.
+intros k l p; revert k l; induction p; intros k l H Hle; simpl; auto.
+  inversion H; subst; repeat case_decide; subst; try (exfalso; omega).
+    now apply IHp1; [|now auto]; eapply valid_le_compat; [eauto|omega].
+    f_equal; apply IHp1; auto.
+    now eapply valid_le_compat; [eauto|omega].
 Qed.
 
-End Eval.
+(* Reduce projects valid polynomials into linear ones *)
+
+Lemma linear_reduce_aux : forall i p, valid (S i) p -> linear i (reduce_aux i p).
+Proof.
+intros i p; revert i; induction p; intros i Hp; simpl.
+  constructor.
+  inversion Hp; subst; case_decide; subst.
+    rewrite <- (Nat.max_id i) at 1; apply poly_add_linear_compat.
+      apply IHp1; eapply valid_le_compat; eauto.
+      now intuition.
+  case_decide.
+    apply IHp1; eapply valid_le_compat; [eauto|omega].
+    constructor; try omega; auto.
+    erewrite (reduce_aux_le_compat n); [|assumption|omega].
+    now apply IHp1; eapply valid_le_compat; eauto.
+Qed.
+
+Lemma linear_reduce : forall k p, valid k p -> linear k (reduce p).
+Proof.
+intros k p H; induction H; simpl.
+  now constructor.
+  case_decide.
+    eapply linear_le_compat; [eauto|omega].
+    constructor; auto.
+    apply linear_reduce_aux; auto.
+Qed.
+
+End Reduce.

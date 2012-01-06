@@ -1,18 +1,44 @@
 Require Import Definitions.
 
-Section Polynomial.
+Section Definitions.
+
+(** * Global, inductive definitions. *)
+
+(** A Horner polynomial is either a constant, or a product P × (i + Q), where i 
+  is a variable. *)
 
 Inductive poly :=
 | Cst : bool -> poly
 | Poly : poly -> nat -> poly -> poly.
 
+(* TODO: We should use [positive] instead of [nat] to encode variables, for 
+ efficiency purpose. *)
+
 Inductive null : poly -> Prop :=
 | null_intro : null (Cst false).
+
+(** Polynomials satisfy a uniqueness condition whenever they are valid. A 
+  polynomial [p] satisfies [valid n p] whenever it is well-formed and each of 
+  its variable indices are < [n]. *)
 
 Inductive valid : nat -> poly -> Prop :=
 | valid_cst : forall k c, valid k (Cst c)
 | valid_poly : forall k p i q,
   i < k -> ~ null q -> valid i p -> valid (S i) q -> valid k (Poly p i q).
+
+(** Linear polynomials are valid polynomials in which every variable appears at 
+  most once. *)
+
+Inductive linear : nat -> poly -> Prop :=
+| linear_cst : forall k c, linear k (Cst c)
+| linear_poly : forall k p i q, i < k -> ~ null q ->
+  linear i p -> linear i q -> linear k (Poly p i q).
+
+End Definitions.
+
+Section Computational.
+
+(** * The core reflexive part. *)
 
 Hint Constructors valid.
 
@@ -49,17 +75,11 @@ abstract(destruct p as [[]|]; first [discriminate|constructor]).
 abstract(inversion 1; trivial).
 Defined.
 
-End Polynomial.
-
-Local Hint Constructors valid.
-
-Section Validity.
-
-Existing Instance Decidable_null.
-
-(* Decision procedure of validity *)
-
-Hint Constructors valid.
+Fixpoint eval (var : nat -> _) (p : poly) :=
+match p with
+| Cst c => c
+| Poly p i q => xorb (eval var p) (andb (var i) (eval var q))
+end.
 
 Fixpoint valid_dec k p :=
 match p with
@@ -76,76 +96,6 @@ Proof.
 abstract(revert n; induction p; simpl in *; intuition; bool; try_decide; auto).
 abstract(intros H; induction H; simpl in *; bool; try_decide; auto).
 Defined.
-
-Lemma valid_le_compat : forall k l p, valid k p -> k <= l -> valid l p.
-Proof.
-intros k l p H Hl; induction H; constructor; eauto with arith.
-Qed.
-
-End Validity.
-
-Section Evaluation.
-
-Existing Instance Decidable_null.
-
-Fixpoint eval (var : nat -> _) (p : poly) :=
-match p with
-| Cst c => c
-| Poly p i q => xorb (eval var p) (andb (var i) (eval var q))
-end.
-
-Fixpoint simpl_eval var p :=
-match p with
-| Cst c => c
-| Poly p i q =>
-  match p with
-  | Cst true => orb (negb (eval var q)) (negb (var i))
-  | Cst false => andb (eval var q) (var i)
-  | _ => xorb (eval var p) (andb (var i) (eval var q))
-  end
-end.
-
-(* Useful simple properties *)
-
-Lemma eval_null_zero : forall p var, null p -> eval var p = false.
-Proof.
-intros p var []; reflexivity.
-Qed.
-
-Lemma eval_simpl_eval_compat : forall p var,
-  simpl_eval var p = eval var p.
-Proof.
-intros p var; induction p as [c|p' i q']; simpl.
-  now reflexivity.
-  destruct p' as [[|]|p' j q'']; simpl;
-  solve [match goal with [ |- context [?b1 && ?b2] ] =>
-    destruct b1; destruct b2; reflexivity
-  end|reflexivity].
-Qed.
-
-Lemma eval_extensional_eq_compat : forall p var1 var2,
-  (forall x, var1 x = var2 x) -> eval var1 p = eval var2 p.
-Proof.
-intros p var1 var2 H; induction p; simpl; try_rewrite; auto.
-Qed.
-
-Lemma eval_suffix_compat : forall k p var1 var2,
-  (forall i, i < k -> var1 i = var2 i) -> valid k p ->
-  eval var1 p = eval var2 p.
-Proof.
-intros k p var1 var2 Hvar Hv; revert var1 var2 Hvar.
-induction Hv; intros var1 var2 Hvar; simpl; [now auto|].
-rewrite Hvar; [|now auto]; erewrite (IHHv1 var1 var2); [|now intuition].
-erewrite (IHHv2 var1 var2); [ring|now intuition].
-Qed.
-
-End Evaluation.
-
-Section Algebra.
-
-Require Import NPeano.
-
-Existing Instance Decidable_null.
 
 (* Addition of polynomials *)
 
@@ -172,12 +122,7 @@ match pl with
   end
 end.
 
-(* More efficient implementation of opposite over polynomials.
-   Instead of computing (-1) × p we just swap coefficients. *)
-
-Definition poly_opp (p : poly) := p.
-
-(* Multiply by a constant *)
+(* Multiply a polynomial by a constant *)
 
 Fixpoint poly_mul_cst v p :=
 match p with
@@ -189,7 +134,7 @@ match p with
   else Poly (poly_mul_cst v p) i r
 end.
 
-(* Multiply by a monomial *)
+(* Multiply a polynomial by a monomial *)
 
 Fixpoint poly_mul_mon k p :=
 match p with
@@ -215,6 +160,54 @@ match pl with
     else poly_add (poly_mul pl pr) (poly_mul_mon il qs)
 end.
 
+End Computational.
+
+Local Hint Constructors valid.
+
+Section Validity.
+
+(* Decision procedure of validity *)
+
+Hint Constructors valid.
+
+Lemma valid_le_compat : forall k l p, valid k p -> k <= l -> valid l p.
+Proof.
+intros k l p H Hl; induction H; constructor; eauto with arith.
+Qed.
+
+End Validity.
+
+Section Evaluation.
+
+(* Useful simple properties *)
+
+Lemma eval_null_zero : forall p var, null p -> eval var p = false.
+Proof.
+intros p var []; reflexivity.
+Qed.
+
+Lemma eval_extensional_eq_compat : forall p var1 var2,
+  (forall x, var1 x = var2 x) -> eval var1 p = eval var2 p.
+Proof.
+intros p var1 var2 H; induction p; simpl; try_rewrite; auto.
+Qed.
+
+Lemma eval_suffix_compat : forall k p var1 var2,
+  (forall i, i < k -> var1 i = var2 i) -> valid k p ->
+  eval var1 p = eval var2 p.
+Proof.
+intros k p var1 var2 Hvar Hv; revert var1 var2 Hvar.
+induction Hv; intros var1 var2 Hvar; simpl; [now auto|].
+rewrite Hvar; [|now auto]; erewrite (IHHv1 var1 var2); [|now intuition].
+erewrite (IHHv2 var1 var2); [ring|now intuition].
+Qed.
+
+End Evaluation.
+
+Section Algebra.
+
+Require Import NPeano.
+
 (* Compatibility with evaluation *)
 
 Lemma poly_add_compat : forall pl pr var, eval var (poly_add pl pr) = xorb (eval var pl) (eval var pr).
@@ -230,11 +223,6 @@ intros pl; induction pl; intros pr var; simpl.
     rewrite <- IHpl2.
     match goal with [ H : null ?p |- _ ] => rewrite (eval_null_zero _ _ H) end; ring.
     simpl; rewrite IHpl1; simpl; ring.
-Qed.
-
-Lemma poly_opp_compat : forall p var, eval var (poly_opp p) = (eval var p).
-Proof.
-intros p var; induction p; simpl; try_rewrite; ring.
 Qed.
 
 Lemma poly_mul_cst_compat : forall v p var,
@@ -298,17 +286,6 @@ intros kl kr pl pr Hl Hr; revert kr pr Hr; induction Hl; intros kr pr Hr; simpl.
       now apply (valid_le_compat (max i (S i0))); intuition.
 Qed.
 
-Lemma poly_opp_null_compat : forall p, null (poly_opp p) -> null p.
-Proof.
-intros p; induction p; simpl; inversion 1 as [Hn].
-constructor.
-Qed.
-
-Lemma poly_opp_valid_compat : forall k p, valid k p -> valid k (poly_opp p).
-Proof.
-intros k p H; induction H; simpl; constructor; auto.
-Qed.
-
 Lemma poly_mul_cst_valid_compat : forall k v p, valid k p -> valid k (poly_mul_cst v p).
 Proof.
 intros k v p H; induction H; simpl; [now auto|].
@@ -347,6 +324,8 @@ induction Hl; intros kr pr Hr; simpl.
     repeat apply Nat.max_case_strong; omega.
 Qed.
 
+End Algebra.
+
 Section Eval.
 
 (* Some stuff about replacing a variable in an assignation *)
@@ -376,5 +355,3 @@ repeat rewrite replace_idem; auto.
 Qed.
 
 End Eval.
-
-End Algebra.

@@ -27,42 +27,6 @@ Definition var_of_list (l : list bool) i := List.nth i l false.
 
 End Bool.
 
-(* Reification tactics *)
-
-Ltac append_var x l k :=
-match l with
-| nil => constr: (k, cons x l)
-| cons x _ => constr: (k, l)
-| cons ?y ?l =>
-  let ans := append_var x l (S k) in
-  match ans with (?k, ?l) => constr: (k, cons y l) end
-end.
-
-Ltac build_formula t l :=
-match t with
-| true => constr: (formula_top, l)
-| false => constr: (formula_btm, l)
-| ?fl && ?fr =>
-  match build_formula fl l with (?tl, ?l) =>
-    match build_formula fr l with (?tr, ?l) =>
-      constr: (formula_cnj tl tr, l)
-    end
-  end
-| ?fl || ?fr =>
-  match build_formula fl l with (?tl, ?l) =>
-    match build_formula fr l with (?tr, ?l) =>
-      constr: (formula_dsj tl tr, l)
-    end
-  end
-| negb ?f =>
-  match build_formula f l with (?t, ?l) =>
-    constr: (formula_neg t, l)
-  end
-| _ =>
-  let ans := append_var t l 0 in
-  match ans with (?k, ?l) => constr: (formula_var k, l) end
-end.
-
 (* Translation of formulas into polynomials *)
 
 Section Translation.
@@ -77,8 +41,8 @@ Fixpoint poly_of_formula f := match f with
 | formula_dsj fl fr =>
   let pl := poly_of_formula fl in
   let pr := poly_of_formula fr in
-  poly_add (poly_add pl pr) (poly_opp (poly_mul pl pr))
-| formula_neg f => poly_add (Cst true) (poly_opp (poly_of_formula f))
+  poly_add (poly_add pl pr) (poly_mul pl pr)
+| formula_neg f => poly_add (Cst true) (poly_of_formula f)
 end.
 
 Opaque poly_add.
@@ -92,14 +56,14 @@ intros var f; induction f; simpl poly_of_formula; simpl formula_eval; auto.
   now simpl; unfold var_of_list; match goal with [ |- ?t = ?u ] => destruct u; reflexivity end.
   rewrite poly_mul_compat, IHf1, IHf2; ring.
   repeat rewrite poly_add_compat.
-  rewrite poly_opp_compat, poly_mul_compat; try_rewrite.
+  rewrite poly_mul_compat; try_rewrite.
   now match goal with [ |- ?t = ?x || ?y ] => destruct x; destruct y; reflexivity end.
-  rewrite poly_add_compat, poly_opp_compat; try_rewrite.
+  rewrite poly_add_compat; try_rewrite.
   now match goal with [ |- ?t = negb ?x ] => destruct x; reflexivity end.
 Qed.
 
 Hint Extern 5 => change 0 with (min 0 0).
-Local Hint Resolve poly_add_valid_compat poly_mul_valid_compat poly_opp_valid_compat.
+Local Hint Resolve poly_add_valid_compat poly_mul_valid_compat.
 Local Hint Constructors valid.
 
 (* Compatibility with validity *)
@@ -198,7 +162,7 @@ intros k l p; revert k l; induction p; intros k l H Hle; simpl; auto.
     now eapply valid_le_compat; [eauto|omega].
 Qed.
 
-Lemma reduce_poly_of_formula_simpl : forall fl fr var,
+(* Lemma reduce_poly_of_formula_simpl : forall fl fr var,
   simpl_eval (var_of_list var) (reduce (poly_of_formula fl)) = simpl_eval (var_of_list var) (reduce (poly_of_formula fr)) ->
   formula_eval var fl = formula_eval var fr.
 Proof.
@@ -209,7 +173,7 @@ destruct (poly_of_formula_valid_compat fr) as [nr Hr].
 rewrite <- (reduce_eval_compat nl (poly_of_formula fl)); [|assumption].
 rewrite <- (reduce_eval_compat nr (poly_of_formula fr)); [|assumption].
 do 2 rewrite <- eval_simpl_eval_compat; assumption.
-Qed.
+Qed. *)
 
 (* Soundness of the method ; immediate *)
 
@@ -290,11 +254,6 @@ match p with
     list_replace var i false
 end.
 
-Inductive linear : nat -> poly -> Prop :=
-| linear_cst : forall k c, linear k (Cst c)
-| linear_poly : forall k p i q, i < k -> ~ null q ->
-  linear i p -> linear i q -> linear k (Poly p i q).
-
 Hint Constructors linear.
 
 Lemma linear_valid_incl : forall k p, linear k p -> valid k p.
@@ -363,11 +322,6 @@ intros kl kr pl pr Hl; revert kr pr; induction Hl; intros kr pr Hr; simpl.
       now apply (linear_le_compat (max i (S i0))); intuition.
 Qed.
 
-Lemma poly_opp_linear_compat : forall k p, linear k p -> linear k (poly_opp p).
-Proof.
-intros k p H; induction H; simpl; constructor; auto.
-Qed.
-
 (* Reduce projects valid polynomials into linear ones *)
 
 Lemma linear_reduce_aux : forall i p, valid (S i) p -> linear i (reduce_aux i p).
@@ -394,38 +348,6 @@ intros k p H; induction H; simpl.
     constructor; auto.
     apply linear_reduce_aux; auto.
 Qed.
-
-(** Retrieve DNF from a polynomial *)
-
-Fixpoint DNF p maxvar : list (list (bool * nat)) :=
-match maxvar with
-| 0 => nil (* should not happen *)
-| S maxvar =>
-  match p with
-  | Cst true => nil
-  | Cst false => cons nil nil
-  | Poly p i q =>
-    let cl := DNF p maxvar in
-    let cr := DNF (poly_add p q) maxvar in
-    let dl := List.map (fun l => cons (false, i) l) cl in
-    let dr := List.map (fun l => cons (true, i) l) cr in
-    List.app cl cr
-  end
-end.
-
-Definition DNF_eval var l :=
-  let clause_fold (v : bool * nat) accu :=
-    let (b, i) := v in
-    let x := if b then (var i) else negb (var i) in
-    andb accu x
-  in
-  let clause_eval c :=
-    List.fold_right clause_fold  true c
-  in
-  List.fold_right (fun c accu => orb accu (clause_eval c)) false l.
-
-(* Lemma DNF_eval_compat : forall p var,
-  eval *)
 
 (* The completeness lemma *)
 
@@ -457,14 +379,50 @@ Defined. *)
 
 End Completeness.
 
+(* Reification tactics *)
+
 (* For reflexivity purposes, that woud better be transparent *)
 
 Global Transparent decide poly_add.
 
+Ltac append_var x l k :=
+match l with
+| nil => constr: (k, cons x l)
+| cons x _ => constr: (k, l)
+| cons ?y ?l =>
+  let ans := append_var x l (S k) in
+  match ans with (?k, ?l) => constr: (k, cons y l) end
+end.
+
+Ltac build_formula t l :=
+match t with
+| true => constr: (formula_top, l)
+| false => constr: (formula_btm, l)
+| ?fl && ?fr =>
+  match build_formula fl l with (?tl, ?l) =>
+    match build_formula fr l with (?tr, ?l) =>
+      constr: (formula_cnj tl tr, l)
+    end
+  end
+| ?fl || ?fr =>
+  match build_formula fl l with (?tl, ?l) =>
+    match build_formula fr l with (?tr, ?l) =>
+      constr: (formula_dsj tl tr, l)
+    end
+  end
+| negb ?f =>
+  match build_formula f l with (?t, ?l) =>
+    constr: (formula_neg t, l)
+  end
+| _ =>
+  let ans := append_var t l 0 in
+  match ans with (?k, ?l) => constr: (formula_var k, l) end
+end.
+
 (* Extract a counterexample from to formulas and display it *)
 
 Ltac counterexample fl fr l :=
-  let p := constr: (poly_add (reduce (poly_of_formula fl)) (poly_opp (reduce (poly_of_formula fr)))) in
+  let p := constr: (poly_add (reduce (poly_of_formula fl)) (reduce (poly_of_formula fr))) in
   let var := constr: (boolean_witness p) in
   let var := eval vm_compute in var in
   let rec print l vl :=
@@ -491,7 +449,7 @@ lazymatch goal with
     match build_formula u l with
     | (?fr, ?l) =>
       change (formula_eval l fl = formula_eval l fr);
-      apply reduce_poly_of_formula_simpl
+      (* apply reduce_poly_of_formula_simpl *) idtac
     end
   end
 | _ => idtac "Cannot recognize a boolean equality"

@@ -1,3 +1,5 @@
+Add Rec LoadPath "." as CoqSat.
+
 Require Import Definitions Bool BoolTactic.
 
 Goal forall a b c d e f g,
@@ -11,7 +13,7 @@ Goal forall a b c d e f g,
   (a && b && c && d && e && f && g)
   = true.
 Proof.
-intros.
+intros; bool_ring.
  bool_reify.
 vm_compute.
  apply reduce_poly_of_formula_sound; vm_compute; reflexivity.

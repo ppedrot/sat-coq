@@ -39,8 +39,8 @@ $(call includecmdwithout@,$(COQBIN)coqtop -config)
 #                        #
 ##########################
 
-COQLIBS?= -R . CoqSat
-COQDOCLIBS?=-R . CoqSat
+COQLIBS?= -R . Btauto
+COQDOCLIBS?=-R . Btauto
 
 ##########################
 #                        #
@@ -79,9 +79,8 @@ endif
 #                    #
 ######################
 
-VFILES:=BoolTactic.v\
-  Algebra.v\
-  Definitions.v
+VFILES:=Reflect.v\
+  Algebra.v
 
 -include $(addsuffix .d,$(VFILES))
 .SECONDARY: $(addsuffix .d,$(VFILES))
@@ -152,14 +151,14 @@ userinstall:
 
 install:
 	for i in $(VOFILES); do \
-	 install -d `dirname $(DSTROOT)$(COQLIBINSTALL)/CoqSat/$$i`; \
-	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/CoqSat/$$i; \
+	 install -d `dirname $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i`; \
+	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i; \
 	done
 
 install-doc:
-	install -d $(DSTROOT)$(COQDOCINSTALL)/CoqSat/html
+	install -d $(DSTROOT)$(COQDOCINSTALL)/Btauto/html
 	for i in html/*; do \
-	 install -m 0644 $$i $(DSTROOT)$(COQDOCINSTALL)/CoqSat/$$i;\
+	 install -m 0644 $$i $(DSTROOT)$(COQDOCINSTALL)/Btauto/$$i;\
 	done
 
 clean:

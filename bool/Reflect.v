@@ -1,4 +1,4 @@
-Require Import Definitions Algebra NPeano.
+Require Import Bool DecidableClass Algebra Ring NPeano.
 
 Section Bool.
 
@@ -286,7 +286,7 @@ Ltac counterexample fl fr l :=
       end
     end
   in
-  idtac "CRITICAL PHAIL:"; print l var.
+  idtac "Not a tautology. Counter-example:"; print l var.
 
 (* Simplification tactic *)
 

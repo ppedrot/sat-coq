@@ -1,4 +1,67 @@
-Require Import Definitions.
+Require Import Bool Arith DecidableClass.
+
+Ltac bool :=
+repeat match goal with
+| [ H : ?P && ?Q = true |- _ ] =>
+  apply andb_true_iff in H; destruct H
+| |- ?P && ?Q = true =>
+  apply <- andb_true_iff; split
+end.
+
+Hint Extern 5 => progress bool.
+
+Ltac define t x H :=
+set (x := t) in *; assert (H : t = x) by reflexivity; clearbody x.
+
+Ltac try_rewrite :=
+repeat match goal with
+| [ H : ?P |- _ ] => rewrite H
+end.
+
+(* We opacify here decide for proofs, and will make it transparent for
+   reflexive tactics later on. *)
+
+Global Opaque decide.
+
+Ltac tac_decide :=
+match goal with
+| [ H : @decide ?P ?D = true |- _ ] => apply (@Decidable_sound P D) in H
+| [ H : @decide ?P ?D = false |- _ ] => apply (@Decidable_complete_alt P D) in H
+| [ |- @decide ?P ?D = true ] => apply (@Decidable_complete P D)
+| [ |- @decide ?P ?D = false ] => apply (@Decidable_sound_alt P D)
+| [ |- negb ?b = true ] => apply negb_true_iff
+| [ |- negb ?b = false ] => apply negb_false_iff
+| [ H : negb ?b = true |- _ ] => apply negb_true_iff in H
+| [ H : negb ?b = false |- _ ] => apply negb_false_iff in H
+end.
+
+Ltac try_decide := repeat tac_decide.
+
+Ltac make_decide P := match goal with
+| [ |- context [@decide P ?D] ] =>
+  let b := fresh "b" in
+  let H := fresh "H" in
+  define (@decide P D) b H; destruct b; try_decide
+| [ X : context [@decide P ?D] |- _ ] =>
+  let b := fresh "b" in
+  let H := fresh "H" in
+  define (@decide P D) b H; destruct b; try_decide
+end.
+
+Ltac case_decide := match goal with
+| [ |- context [@decide ?P ?D] ] =>
+  let b := fresh "b" in
+  let H := fresh "H" in
+  define (@decide P D) b H; destruct b; try_decide
+| [ X : context [@decide ?P ?D] |- _ ] =>
+  let b := fresh "b" in
+  let H := fresh "H" in
+  define (@decide P D) b H; destruct b; try_decide
+| [ |- context [nat_compare ?x ?y] ] =>
+  destruct (nat_compare_spec x y); try (exfalso; omega)
+| [ X : context [nat_compare ?x ?y] |- _ ] =>
+  destruct (nat_compare_spec x y); try (exfalso; omega)
+end.
 
 Section Definitions.
 
@@ -58,22 +121,25 @@ match pl with
 end.
 
 (* We could do that with [decide equality] but dependency in proofs is heavy *)
-Instance Decidable_eq_poly : forall (p q : poly), Decidable (eq p q) := {
+Program Instance Decidable_eq_poly : forall (p q : poly), Decidable (eq p q) := {
   Decidable_witness := beq_poly p q
 }.
-Proof.
-abstract(revert q; induction p; intros [] ?; simpl in *; bool; try_decide;
-  f_equal; first [intuition congruence|auto]).
-abstract(revert q; induction p; intros [] Heq; simpl in *; bool; try_decide; intuition;
-  try injection Heq; first[congruence|intuition]).
-Defined.
+Next Obligation.
+split.
+revert q; induction p; intros [] ?; simpl in *; bool; try_decide;
+  f_equal; first [intuition congruence|auto].
+revert q; induction p; intros [] Heq; simpl in *; bool; try_decide; intuition;
+  try injection Heq; first[congruence|intuition].
+Qed.
 
-Instance Decidable_null : forall p, Decidable (null p) := {
+Program Instance Decidable_null : forall p, Decidable (null p) := {
   Decidable_witness := match p with Cst false => true | _ => false end
 }.
-abstract(destruct p as [[]|]; first [discriminate|constructor]).
-abstract(inversion 1; trivial).
-Defined.
+Next Obligation.
+split.
+  destruct p as [[]|]; first [discriminate|constructor].
+  inversion 1; trivial.
+Qed.
 
 Fixpoint eval var (p : poly) :=
 match p with
@@ -91,13 +157,14 @@ match p with
     valid_dec i p && valid_dec (S i) q
 end.
 
-Instance Decidable_valid : forall n p, Decidable (valid n p) := {
+Program Instance Decidable_valid : forall n p, Decidable (valid n p) := {
   Decidable_witness := valid_dec n p
 }.
-Proof.
-abstract(revert n; induction p; simpl in *; intuition; bool; try_decide; auto).
-abstract(intros H; induction H; simpl in *; bool; try_decide; auto).
-Defined.
+Next Obligation.
+split.
+  revert n; induction p; simpl in *; intuition; bool; try_decide; auto.
+  intros H; induction H; simpl in *; bool; try_decide; auto.
+Qed.
 
 (** Basic algebra *)
 
@@ -267,16 +334,16 @@ intros pl; induction pl; intros pr var; simpl.
 Qed.
 
 Lemma poly_mul_cst_compat : forall v p var,
-  eval var (poly_mul_cst v p) = (andb v (eval var p))%Z.
+  eval var (poly_mul_cst v p) = andb v (eval var p).
 Proof.
 intros v p; induction p; intros var; simpl; [ring|].
 case_decide; simpl; try_rewrite; [ring_simplify|ring].
-replace (v && List.nth n var false && eval var p2)%Z with (List.nth n var false && (v && eval var p2))%Z by ring.
+replace (v && List.nth n var false && eval var p2) with (List.nth n var false && (v && eval var p2)) by ring.
 rewrite <- IHp2; inversion H; simpl; ring.
 Qed.
 
 Lemma poly_mul_mon_compat : forall i p var,
-  eval var (poly_mul_mon i p) = (List.nth i var false && eval var p)%Z.
+  eval var (poly_mul_mon i p) = (List.nth i var false && eval var p).
 Proof.
 intros i p var; induction p; simpl; case_decide; simpl; try_rewrite; try ring.
 inversion H; ring.
@@ -290,8 +357,8 @@ intros pl; induction pl; intros pr var; simpl.
   apply poly_mul_cst_compat.
   case_decide; simpl.
     rewrite IHpl1; ring_simplify.
-    replace (eval var pr && List.nth n var false && eval var pl2)%Z
-    with (List.nth n var false && (eval var pl2 && eval var pr))%Z by ring.
+    replace (eval var pr && List.nth n var false && eval var pl2)
+    with (List.nth n var false && (eval var pl2 && eval var pr)) by ring.
     now rewrite <- IHpl2; inversion H; simpl; ring.
     rewrite poly_add_compat, poly_mul_mon_compat, IHpl1, IHpl2; ring.
 Qed.
@@ -407,11 +474,11 @@ inversion Hv; case_decide; subst.
   remember (List.nth k var false) as b; destruct b; ring_simplify; [|now auto].
   case_decide; simpl.
     rewrite <- (IHp2 n); [inversion H|now auto]; simpl.
-    replace (eval var p1) with (List.nth k var false && eval var p1)%Z by (rewrite <- Heqb; ring); rewrite <- (IHp1 k).
+    replace (eval var p1) with (List.nth k var false && eval var p1) by (rewrite <- Heqb; ring); rewrite <- (IHp1 k).
       rewrite <- Heqb; ring.
       now apply (valid_le_compat n); [auto|omega].
     rewrite (IHp2 n); [|now auto].
-    replace (eval var p1) with (List.nth k var false && eval var p1)%Z by (rewrite <- Heqb; ring).
+    replace (eval var p1) with (List.nth k var false && eval var p1) by (rewrite <- Heqb; ring).
     rewrite <- (IHp1 k); [rewrite <- Heqb; ring|].
     apply (valid_le_compat n); [auto|omega].
 Qed.

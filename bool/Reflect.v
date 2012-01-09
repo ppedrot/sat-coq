@@ -10,7 +10,9 @@ Inductive formula :=
 | formula_top : formula
 | formula_cnj : formula -> formula -> formula
 | formula_dsj : formula -> formula -> formula
-| formula_neg : formula -> formula.
+| formula_neg : formula -> formula
+| formula_xor : formula -> formula -> formula
+| formula_ifb : formula -> formula -> formula -> formula.
 
 Fixpoint formula_eval var f := match f with
 | formula_var x => List.nth x var false 
@@ -19,6 +21,9 @@ Fixpoint formula_eval var f := match f with
 | formula_cnj fl fr => (formula_eval var fl) && (formula_eval var fr)
 | formula_dsj fl fr => (formula_eval var fl) || (formula_eval var fr)
 | formula_neg f => negb (formula_eval var f)
+| formula_xor fl fr => xorb (formula_eval var fl) (formula_eval var fr)
+| formula_ifb fc fl fr =>
+  if formula_eval var fc then formula_eval var fl else formula_eval var fr
 end.
 
 End Bool.
@@ -42,6 +47,12 @@ Fixpoint poly_of_formula f := match f with
   let pr := poly_of_formula fr in
   poly_add (poly_add pl pr) (poly_mul pl pr)
 | formula_neg f => poly_add (Cst true) (poly_of_formula f)
+| formula_xor fl fr => poly_add (poly_of_formula fl) (poly_of_formula fr)
+| formula_ifb fc fl fr =>
+  let pc := poly_of_formula fc in
+  let pl := poly_of_formula fl in
+  let pr := poly_of_formula fr in
+  poly_add pr (poly_add (poly_mul pc pl) (poly_mul pc pr))
 end.
 
 Opaque poly_add.
@@ -59,6 +70,11 @@ intros var f; induction f; simpl poly_of_formula; simpl formula_eval; auto.
   now match goal with [ |- ?t = ?x || ?y ] => destruct x; destruct y; reflexivity end.
   rewrite poly_add_compat; try_rewrite.
   now match goal with [ |- ?t = negb ?x ] => destruct x; reflexivity end.
+  rewrite poly_add_compat; congruence.
+  rewrite ?poly_add_compat, ?poly_mul_compat; try_rewrite.
+  match goal with
+    [ |- ?t = if ?b1 then ?b2 else ?b3 ] => destruct b1; destruct b2; destruct b3; reflexivity
+  end.
 Qed.
 
 Hint Extern 5 => change 0 with (min 0 0).
@@ -76,6 +92,8 @@ intros f; induction f; simpl.
   now destruct IHf1 as [n1 Hn1]; destruct IHf2 as [n2 Hn2]; exists (max n1 n2); auto.
   now destruct IHf1 as [n1 Hn1]; destruct IHf2 as [n2 Hn2]; exists (max (max n1 n2) (max n1 n2)); auto.
   now destruct IHf as [n Hn]; exists (max 0 n); auto.
+  now destruct IHf1 as [n1 Hn1]; destruct IHf2 as [n2 Hn2]; exists (max n1 n2); auto.
+  destruct IHf1 as [n1 Hn1]; destruct IHf2 as [n2 Hn2]; destruct IHf3 as [n3 Hn3]; eexists; eauto.
 Qed.
 
 (* The soundness lemma ; alas not complete! *)

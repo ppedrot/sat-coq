@@ -128,6 +128,8 @@ module Btauto = struct
   let f_cnj = get_constant ["Btauto"; "Reflect"] "formula_cnj"
   let f_dsj = get_constant ["Btauto"; "Reflect"] "formula_dsj"
   let f_neg = get_constant ["Btauto"; "Reflect"] "formula_neg"
+  let f_xor = get_constant ["Btauto"; "Reflect"] "formula_xor"
+  let f_ifb = get_constant ["Btauto"; "Reflect"] "formula_ifb"
 
   let eval = get_constant ["Btauto"; "Reflect"] "formula_eval"
 

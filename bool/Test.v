@@ -1,6 +1,8 @@
-Add Rec LoadPath "." as CoqSat.
+Add Rec LoadPath "." as Btauto.
 
-Require Import Definitions Bool BoolTactic.
+Require Import Bool Reflect.
+
+Declare ML Module "btauto".
 
 Goal forall a b c d e f g,
   (negb a && b && c && d && e && f && g) ||
@@ -13,14 +15,14 @@ Goal forall a b c d e f g,
   (a && b && c && d && e && f && g)
   = true.
 Proof.
-intros; bool_ring.
- bool_reify.
+intros.
+ btauto.
 vm_compute.
 Abort.
 
-Goal forall a b c : bool, c || a || negb a = a || (negb a).
+Goal forall a b c : bool, c || a || (negb a && b) || (negb a && negb b) = a || (negb a).
 Proof.
-intros; bool_ring.
+intros; btauto.
 Qed.
 
 Print Unnamed_thm.

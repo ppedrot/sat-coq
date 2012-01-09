@@ -39,6 +39,7 @@ $(call includecmdwithout@,$(COQBIN)coqtop -config)
 #                        #
 ##########################
 
+OCAMLLIBS?=
 COQLIBS?= -R . Btauto
 COQDOCLIBS?=-R . Btauto
 
@@ -57,6 +58,42 @@ COQDEP?=$(COQBIN)coqdep -c
 GALLINA?=$(COQBIN)gallina
 COQDOC?=$(COQBIN)coqdoc
 COQCHK?=$(COQBIN)coqchk
+
+COQSRCLIBS?=-I $(COQLIB)kernel -I $(COQLIB)lib \
+  -I $(COQLIB)library -I $(COQLIB)parsing \
+  -I $(COQLIB)pretyping -I $(COQLIB)interp \
+  -I $(COQLIB)proofs -I $(COQLIB)tactics \
+  -I $(COQLIB)toplevel \
+  -I $(COQLIB)plugins/cc \
+  -I $(COQLIB)plugins/decl_mode \
+  -I $(COQLIB)plugins/dp \
+  -I $(COQLIB)plugins/extraction \
+  -I $(COQLIB)plugins/field \
+  -I $(COQLIB)plugins/firstorder \
+  -I $(COQLIB)plugins/fourier \
+  -I $(COQLIB)plugins/funind \
+  -I $(COQLIB)plugins/micromega \
+  -I $(COQLIB)plugins/nsatz \
+  -I $(COQLIB)plugins/omega \
+  -I $(COQLIB)plugins/quote \
+  -I $(COQLIB)plugins/ring \
+  -I $(COQLIB)plugins/romega \
+  -I $(COQLIB)plugins/rtauto \
+  -I $(COQLIB)plugins/setoid_ring \
+  -I $(COQLIB)plugins/subtac \
+  -I $(COQLIB)plugins/subtac/test \
+  -I $(COQLIB)plugins/syntax \
+  -I $(COQLIB)plugins/xml
+ZFLAGS=$(OCAMLLIBS) $(COQSRCLIBS) -I $(CAMLP4LIB)
+
+CAMLC?=$(OCAMLC) -c -rectypes
+CAMLOPTC?=$(OCAMLOPT) -c -rectypes
+CAMLLINK?=$(OCAMLC) -rectypes
+CAMLOPTLINK?=$(OCAMLOPT) -rectypes
+GRAMMARS?=grammar.cma
+CAMLP4EXTEND?=pa_extend.cmo pa_macro.cmo q_MLast.cmo
+CAMLP4OPTIONS?=
+PP?=-pp "$(CAMLP4BIN)$(CAMLP4)o -I $(CAMLLIB) -I . $(COQSRCLIBS) $(CAMLP4EXTEND) $(GRAMMARS) $(CAMLP4OPTIONS) -impl"
 
 ##################
 #                #
@@ -91,6 +128,17 @@ VIFILES:=$(VFILES:.v=.vi)
 GFILES:=$(VFILES:.v=.g)
 HTMLFILES:=$(VFILES:.v=.html)
 GHTMLFILES:=$(VFILES:.v=.g.html)
+ML4FILES:=btauto.ml4
+
+-include $(addsuffix .d,$(ML4FILES))
+.SECONDARY: $(addsuffix .d,$(ML4FILES))
+
+ALLCMOFILES:=$(ML4FILES:.ml4=.cmo)
+CMOFILES=$(filter-out $(addsuffix .cmo,$(foreach lib,$(MLLIBFILES:.mllib=_MLLIB_DEPENDENCIES) $(MLPACKFILES:.mlpack=_MLPACK_DEPENDENCIES),$($(lib)))),$(ALLCMOFILES))
+CMXFILES=$(CMOFILES:.cmo=.cmx)
+OFILES=$(CMXFILES:.cmx=.o)
+CMIFILES=$(ALLCMOFILES:.cmo=.cmi)
+CMXSFILES=$(CMXFILES:.cmx=.cmxs)
 
 #######################################
 #                                     #
@@ -98,7 +146,7 @@ GHTMLFILES:=$(VFILES:.v=.g.html)
 #                                     #
 #######################################
 
-all: $(VOFILES) 
+all: $(VOFILES) $(CMOFILES) $(if ifeq '$(HASNATDYNLINK)' 'true',$(CMXSFILES)) 
 
 spec: $(VIFILES)
 
@@ -149,8 +197,22 @@ opt:
 userinstall:
 	+$(MAKE) USERINSTALL=true install
 
-install:
+install-natdynlink:
+	for i in $(CMXSFILES); do \
+	 install -d `dirname $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i`; \
+	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i; \
+	done
+
+install:$(if ifeq '$(HASNATDYNLINK)' 'true',install-natdynlink)
 	for i in $(VOFILES); do \
+	 install -d `dirname $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i`; \
+	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i; \
+	done
+	for i in $(CMOFILES); do \
+	 install -d `dirname $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i`; \
+	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i; \
+	done
+	for i in $(CMIFILES); do \
 	 install -d `dirname $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i`; \
 	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Btauto/$$i; \
 	done
@@ -162,6 +224,9 @@ install-doc:
 	done
 
 clean:
+	rm -f $(ALLCMOFILES) $(CMIFILES) $(CMAFILES)
+	rm -f $(ALLCMOFILES:.cmo=.cmx) $(CMXAFILES) $(CMXSFILES) $(ALLCMOFILES:.cmo=.o) $(CMXAFILES:.cmxa=.a)
+	rm -f $(addsuffix .d,$(MLFILES) $(MLIFILES) $(ML4FILES) $(MLLIBFILES) $(MLPACKFILES))
 	rm -f $(VOFILES) $(VIFILES) $(GFILES) $(VFILES:.v=.v.d) $(VFILES:=.beautified) $(VFILES:=.old)
 	rm -f all.ps all-gal.ps all.pdf all-gal.pdf all.glob $(VFILES:.v=.glob) $(VFILES:.v=.tex) $(VFILES:.v=.g.tex) all-mli.tex
 	- rm -rf html mlihtml
@@ -188,6 +253,18 @@ Makefile: _CoqProject
 # Implicit rules. #
 #                 #
 ###################
+
+%.cmo: %.ml4
+	$(CAMLC) $(ZDEBUG) $(ZFLAGS) $(PP) -impl $<
+
+%.cmx: %.ml4
+	$(CAMLOPTC) $(ZDEBUG) $(ZFLAGS) $(PP) -impl $<
+
+%.ml4.d: %.ml4
+	$(OCAMLDEP) -slash $(OCAMLLIBS) $(PP) -impl "$<" > "$@" || ( RV=$$?; rm -f "$@"; exit $${RV} )
+
+%.cmxs: %.cmx
+	$(CAMLOPTLINK) $(ZDEBUG) $(ZFLAGS) -shared -o $@ $<
 
 %.vo %.glob: %.v
 	$(COQC) $(COQDEBUG) $(COQFLAGS) $*

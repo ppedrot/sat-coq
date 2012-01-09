@@ -33,7 +33,10 @@ Fixpoint poly_of_formula f := match f with
 | formula_var x => Poly (Cst false) x (Cst true) 
 | formula_btm => Cst false
 | formula_top => Cst true
-| formula_cnj fl fr => poly_mul (poly_of_formula fl) (poly_of_formula fr)
+| formula_cnj fl fr =>
+  let pl := poly_of_formula fl in
+  let pr := poly_of_formula fr in
+  poly_mul pl pr
 | formula_dsj fl fr =>
   let pl := poly_of_formula fl in
   let pr := poly_of_formula fr in
@@ -198,6 +201,27 @@ intros k p Hl Hp; induction Hl; simpl.
     now intros j Hd; apply list_replace_nth_1; omega.
 Qed.
 
+(* This should be better when using the [vm_compute] tactic instead of plain reflexivity. *)
+
+Lemma reduce_poly_of_formula_sound_alt : forall var fl fr,
+  reduce (poly_add (poly_of_formula fl) (poly_of_formula fr)) = Cst false ->
+  formula_eval var fl = formula_eval var fr.
+Proof.
+intros var fl fr Heq.
+repeat rewrite <- poly_of_formula_eval_compat.
+destruct (poly_of_formula_valid_compat fl) as [nl Hl].
+destruct (poly_of_formula_valid_compat fr) as [nr Hr].
+rewrite <- (reduce_eval_compat nl (poly_of_formula fl)); auto.
+rewrite <- (reduce_eval_compat nr (poly_of_formula fr)); auto.
+rewrite <- xorb_false_l; change false with (eval var (Cst false)).
+rewrite <- poly_add_compat, <- Heq.
+repeat rewrite poly_add_compat.
+rewrite (reduce_eval_compat nl); [|assumption].
+rewrite (reduce_eval_compat (max nl nr)); [|apply poly_add_valid_compat; assumption].
+rewrite (reduce_eval_compat nr); [|assumption].
+rewrite poly_add_compat; ring.
+Qed.
+
 (* The completeness lemma *)
 
 (* Lemma reduce_poly_of_formula_complete : forall fl fr,
@@ -230,7 +254,7 @@ End Completeness.
 
 (* Reification tactics *)
 
-(* For reflexivity purposes, that woud better be transparent *)
+(* For reflexivity purposes, that would better be transparent *)
 
 Global Transparent decide poly_add.
 
@@ -268,10 +292,9 @@ match t with
   match ans with (?k, ?l) => constr: (formula_var k, l) end
 end.
 
-(* Extract a counterexample from to formulas and display it *)
+(* Extract a counterexample from a polynomial and display it *)
 
-Ltac counterexample fl fr l :=
-  let p := constr: (poly_add (reduce (poly_of_formula fl)) (reduce (poly_of_formula fr))) in
+Ltac counterexample p l :=
   let var := constr: (boolean_witness p) in
   let var := eval vm_compute in var in
   let rec print l vl :=
@@ -286,35 +309,19 @@ Ltac counterexample fl fr l :=
       end
     end
   in
-  idtac "Not a tautology. Counter-example:"; print l var.
+  idtac "Counter-example:"; print l var.
 
-(* Simplification tactic *)
-
-Ltac bool_simpl :=
+Ltac btauto_reify :=
 lazymatch goal with
 | [ |- @eq bool ?t ?u ] =>
-  match build_formula t (@nil bool) with
+  lazymatch build_formula t (@nil bool) with
   | (?fl, ?l) =>
-    match build_formula u l with
-    | (?fr, ?l) =>
-      change (formula_eval l fl = formula_eval l fr);
-      (* apply reduce_poly_of_formula_simpl *) idtac
-    end
-  end
-| _ => idtac "Cannot recognize a boolean equality"
-end.
-
-Ltac bool_reify :=
-lazymatch goal with
-| [ |- @eq bool ?t ?u ] =>
-  match build_formula t (@nil bool) with
-  | (?fl, ?l) =>
-    match build_formula u l with
+    lazymatch build_formula u l with
     | (?fr, ?l) =>
       change (formula_eval l fl = formula_eval l fr)
     end
   end
-| _ => idtac "Cannot recognize a boolean equality"
+| _ => fail "Cannot recognize a boolean equality"
 end.
 
 (* The long-awaited tactic *)
@@ -322,14 +329,14 @@ end.
 Ltac btauto :=
 lazymatch goal with
 | [ |- @eq bool ?t ?u ] =>
-  match build_formula t (@nil bool) with
+  lazymatch build_formula t (@nil bool) with
   | (?fl, ?l) =>
-    match build_formula u l with
+    lazymatch build_formula u l with
     | (?fr, ?l) =>
-      (change (formula_eval l fl = formula_eval l fr);
-      apply reduce_poly_of_formula_sound;
-      vm_compute; reflexivity) || counterexample fl fr l
+      change (formula_eval l fl = formula_eval l fr);
+      apply reduce_poly_of_formula_sound_alt;
+      vm_compute; (reflexivity || fail "Not a tautology")
     end
   end
-| _ => idtac "Cannot recognize a boolean equality"
+| _ => fail "Cannot recognize a boolean equality"
 end.

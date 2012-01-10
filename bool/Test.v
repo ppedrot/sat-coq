@@ -15,14 +15,13 @@ Goal forall a b c d e f g,
   (a && b && c && d && e && f && g)
   = true.
 Proof.
-intros.
- btauto.
-vm_compute.
+intros; btauto || admit.
 Abort.
 
 Goal forall a b c : bool, c || a || (negb a && b) || (negb a && negb b) = a || (negb a).
 Proof.
-intros; btauto.
+intros.
+btauto.
 Qed.
 
 Print Unnamed_thm.

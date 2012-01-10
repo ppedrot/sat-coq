@@ -122,6 +122,8 @@ end
 
 module Btauto = struct
 
+  let eq = get_constant ["Coq"; "Init"; "Logic"]  "eq"
+
   let f_var = get_constant ["Btauto"; "Reflect"] "formula_var"
   let f_btm = get_constant ["Btauto"; "Reflect"] "formula_btm"
   let f_top = get_constant ["Btauto"; "Reflect"] "formula_top"
@@ -133,6 +135,8 @@ module Btauto = struct
 
   let eval = get_constant ["Btauto"; "Reflect"] "formula_eval"
 
+  let soundness = get_constant ["Btauto"; "Reflect"] "reduce_poly_of_formula_sound_alt"
+
   let rec convert = function
   | Bool.Var n -> lapp f_var [|CoqNat.of_int n|]
   | Bool.Const true -> Lazy.force f_top
@@ -140,6 +144,7 @@ module Btauto = struct
   | Bool.Andb (b1, b2) -> lapp f_cnj [|convert b1; convert b2|]
   | Bool.Orb (b1, b2) -> lapp f_dsj [|convert b1; convert b2|]
   | Bool.Negb b -> lapp f_neg [|convert b|]
+  | Bool.Xorb (b1, b2) -> lapp f_xor [|convert b1; convert b2|]
   | _ -> assert false
 
   let convert_env env : Term.constr = 
@@ -148,27 +153,40 @@ module Btauto = struct
 
   let reify env t = lapp eval [|convert_env env; convert t|]
 
-  let tac gl =
-    Tactics.change_in_concl None (Lazy.force Bool.trueb) gl
-
-  let tac gl =
+  let try_unification env gl =
+    let env = Env.to_list env in
+    let eq = Lazy.force eq in
     let concl = Tacmach.pf_concl gl in
     let t = decomp_term concl in
     match t with
-    | Term.App (c, args) when Array.length args >= 2 ->
-      let len = Array.length args in
-      let tl = args.(len - 2) in
-      let tr = args.(len - 1) in
-      let ts = Array.sub args 0 (len - 2) in
-      let rel = Term.mkApp (c, ts) in
+    | Term.App (c, [|typ; p; _|]) when c === eq ->
+      (* should be an equality [@eq poly ?p (Cst false)] *)
+      Tactics.reflexivity gl
+    | _ ->
+      let msg = Pp.str "Btauto: Internal error" in
+      Tacticals.tclFAIL 0 msg gl
+
+  let tac gl =
+    let eq = Lazy.force eq in
+    let bool = Lazy.force Bool.typ in
+    let concl = Tacmach.pf_concl gl in
+    let t = decomp_term concl in
+    match t with
+    | Term.App (c, [|typ; tl; tr|])
+        when typ === bool && c === eq ->
       let env = Env.empty () in
       let fl = Bool.quote env tl in
       let fr = Bool.quote env tr in
-      let changed_gl = Term.mkApp (rel, [|reify env fl; reify env fr|]) in
-      Tactics.change_in_concl None changed_gl gl
+      let changed_gl = Term.mkApp (c, [|typ; reify env fl; reify env fr|]) in
+      Tacticals.tclTHENLIST [
+        Tactics.change_in_concl None changed_gl;
+        Tactics.apply (Lazy.force soundness);
+        Tactics.normalise_vm_in_concl;
+        try_unification env
+      ] gl
     | _ ->
       let msg = Pp.str "Cannot recognize a boolean equality" in
-      Tacticals.tclFAIL 1 msg gl
+      Tacticals.tclFAIL 0 msg gl
 
 end
 

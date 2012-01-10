@@ -276,7 +276,7 @@ End Completeness.
 
 Global Transparent decide poly_add.
 
-Ltac append_var x l k :=
+(* Ltac append_var x l k :=
 match l with
 | nil => constr: (k, cons x l)
 | cons x _ => constr: (k, l)
@@ -357,4 +357,4 @@ lazymatch goal with
     end
   end
 | _ => fail "Cannot recognize a boolean equality"
-end.
+end. *)

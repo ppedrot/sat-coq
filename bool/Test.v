@@ -1,3 +1,5 @@
+Goal True.
+
 Add Rec LoadPath "." as Btauto.
 
 Require Import Bool Reflect.
@@ -11,11 +13,18 @@ Goal forall a b c d e f g,
   (a && b && c && negb d && e && f && g) ||
   (a && b && c && d && negb e && f && g) ||
   (a && b && c && d && e && negb f && g) ||
-  (a && b && c && d && e && f && negb g) ||
-  (a && b && c && d && e && f && g)
-  = true.
+  (a && b && c && d && e && f && negb g)
+  = false.
 Proof.
-intros; btauto || admit.
+intros.
+btauto.
+ apply reduce_poly_of_formula_sound_alt; vm_compute.
+admit.
+Qed.
+
+Goal forall a b c : bool, c || a = a || (negb a).
+Proof.
+intros; btauto.
 Abort.
 
 Goal forall a b c : bool, c || a || (negb a && b) || (negb a && negb b) = a || (negb a).

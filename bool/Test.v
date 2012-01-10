@@ -1,5 +1,3 @@
-Goal True.
-
 Add Rec LoadPath "." as Btauto.
 
 Require Import Bool Reflect.
@@ -17,15 +15,12 @@ Goal forall a b c d e f g,
   = false.
 Proof.
 intros.
-btauto.
- apply reduce_poly_of_formula_sound_alt; vm_compute.
-admit.
-Qed.
+Abort.
 
-Goal forall a b c : bool, c || a = a || (negb a).
+Goal forall a b c : bool, c || a = negb ((negb a) && (negb c)).
 Proof.
 intros; btauto.
-Abort.
+Qed.
 
 Goal forall a b c : bool, c || a || (negb a && b) || (negb a && negb b) = a || (negb a).
 Proof.
@@ -33,10 +28,14 @@ intros.
 btauto.
 Qed.
 
-Print Unnamed_thm.
+Goal forall a, a = true.
+Proof.
+intros.
+btauto.
+
 
 Goal forall a b, (a || negb b) && (negb a || b) = true.
-intros; bool_ring.
+intros; btauto.
 Admitted.
 
 Goal forall a b, (a || b || negb (a && b)) = true.

@@ -125,6 +125,8 @@ end
 
 module Btauto = struct
 
+  open Pp
+
   let eq = get_constant ["Coq"; "Init"; "Logic"]  "eq"
 
   let f_var = get_constant ["Btauto"; "Reflect"] "formula_var"
@@ -170,12 +172,28 @@ module Btauto = struct
       else invalid_arg "to_list"
     | _ -> invalid_arg "to_list"
     in
+    let concat sep = function
+    | [] -> mt ()
+    | h :: t ->
+      let rec aux = function
+      | [] -> mt ()
+      | x :: t -> (sep ++ x ++ aux t)
+      in
+      h ++ aux t
+    in
     let msg =
       try
         let var = to_list var in
         let assign = List.combine env var in
-        raise Exit
-      with _ -> (Pp.str "Not a tautology")
+        let map_msg (key, v) =
+          let b = if v then str "true" else str "false" in
+          let term = Printer.pr_constr key in
+          term ++ spc () ++ str ":=" ++ spc () ++ b
+        in
+        let assign = List.map map_msg assign in
+        let l = str "[" ++ (concat (str ";" ++ spc ()) assign) ++ str "]" in
+        str "Not a tautology:" ++ spc () ++ l
+      with _ -> (str "Not a tautology")
     in
     Tacticals.tclFAIL 0 msg gl
 
@@ -191,7 +209,7 @@ module Btauto = struct
         (print_counterexample p env)
         gl
     | _ ->
-      let msg = Pp.str "Btauto: Internal error" in
+      let msg = str "Btauto: Internal error" in
       Tacticals.tclFAIL 0 msg gl
 
   let tac gl =
@@ -216,7 +234,7 @@ module Btauto = struct
         try_unification env
       ] gl
     | _ ->
-      let msg = Pp.str "Cannot recognize a boolean equality" in
+      let msg = str "Cannot recognize a boolean equality" in
       Tacticals.tclFAIL 0 msg gl
 
 end

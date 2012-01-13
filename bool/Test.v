@@ -1,8 +1,12 @@
 Add Rec LoadPath "." as Btauto.
 
-Require Import Bool Reflect.
+Goal forall a : bool, (if a then a else negb a) = true.
+Proof.
+intros.
 
-Declare ML Module "btauto".
+change (
+
+btauto.
 
 Goal forall a b c d e f g,
   (negb a && b && c && d && e && f && g) ||
@@ -15,9 +19,10 @@ Goal forall a b c d e f g,
   = false.
 Proof.
 intros.
+try btauto.
 Abort.
 
-Goal forall a b c : bool, c || a = negb ((negb a) && (negb c)).
+Goal forall a b c : bool, c || b ||  a = b || negb ((negb a) && (negb c)).
 Proof.
 intros; btauto.
 Qed.

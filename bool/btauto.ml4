@@ -8,9 +8,13 @@ let init_constant dir s =
 
 let get_constant dir s = lazy (init_constant dir s)
 
-let decomp_term (c : Term.constr)  = 
+let get_inductive dir s =
+  let glob_ref () = Coqlib.find_reference contrib_name dir s in
+  Lazy.lazy_from_fun (fun () -> Libnames.destIndRef (glob_ref ()))
+
+let decomp_term (c : Term.constr) =
   Term.kind_of_term (Term.strip_outer_cast c)
-    
+
 let lapp c v  = Term.mkApp (Lazy.force c, v)
 
 let (===) = Term.eq_constr
@@ -56,7 +60,7 @@ module Env = struct
   module ConstrHashtbl = Hashtbl.Make (ConstrHashed)
 
   type t = (int ConstrHashtbl.t * int ref)
-      
+
   let add (tbl, off) (t : Term.constr) =
     try ConstrHashtbl.find tbl t 
     with
@@ -66,9 +70,10 @@ module Env = struct
       let () = incr off in
       i
 
-  let empty () = (ConstrHashtbl.create 16, ref 0)       
+  let empty () = (ConstrHashtbl.create 16, ref 0)
 
   let to_list (env, _) =
+    (* we need to get an ordered list *)
     let fold constr key accu = (key, constr) :: accu in
     let l = ConstrHashtbl.fold fold env [] in
     let sorted_l = List.sort (fun p1 p2 -> compare (fst p1) (fst p2)) l in
@@ -79,6 +84,7 @@ end
 module Bool = struct
 
   let typ = get_constant ["Coq"; "Init"; "Datatypes"] "bool"
+  let ind = get_inductive ["Coq"; "Init"; "Datatypes"] "bool"
   let trueb = get_constant ["Coq"; "Init"; "Datatypes"] "true"
   let falseb = get_constant ["Coq"; "Init"; "Datatypes"] "false"
   let andb = get_constant ["Coq"; "Init"; "Datatypes"] "andb"
@@ -114,6 +120,15 @@ module Bool = struct
       else if head === negb && Array.length args = 1 then
         Negb (aux args.(0))
       else Var (Env.add env c)
+    | Term.Case (info, r, arg, pats) ->
+      let is_bool =
+        let i = info.Term.ci_ind in
+        Names.eq_ind i (Lazy.force ind)
+      in
+      if is_bool then
+        Ifb ((aux arg), (aux pats.(0)), (aux pats.(1)))
+      else
+        Var (Env.add env c)
     | _ ->
       if c === falseb then Const false
       else if c === trueb then Const true
@@ -151,7 +166,7 @@ module Btauto = struct
   | Bool.Orb (b1, b2) -> lapp f_dsj [|convert b1; convert b2|]
   | Bool.Negb b -> lapp f_neg [|convert b|]
   | Bool.Xorb (b1, b2) -> lapp f_xor [|convert b1; convert b2|]
-  | _ -> assert false
+  | Bool.Ifb (b1, b2, b3) -> lapp f_ifb [|convert b1; convert b2; convert b3|]
 
   let convert_env env : Term.constr = 
     CoqList.of_list (Lazy.force Bool.typ) env
@@ -204,10 +219,8 @@ module Btauto = struct
     match t with
     | Term.App (c, [|typ; p; _|]) when c === eq ->
       (* should be an equality [@eq poly ?p (Cst false)] *)
-      Tacticals.tclORELSE0
-        Tactics.reflexivity
-        (print_counterexample p env)
-        gl
+      let tac = Tacticals.tclORELSE0 Tactics.reflexivity (print_counterexample p env) in
+      tac gl
     | _ ->
       let msg = str "Btauto: Internal error" in
       Tacticals.tclFAIL 0 msg gl

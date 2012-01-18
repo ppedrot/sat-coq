@@ -240,6 +240,36 @@ rewrite (reduce_eval_compat nr); [|assumption].
 rewrite poly_add_compat; ring.
 Qed.
 
+Lemma reduce_poly_of_formula_simpl_hyps : forall var fl fr,
+  formula_eval var fl = formula_eval var fr ->
+  simpl_eval var (reduce (poly_add (poly_of_formula fl) (poly_of_formula fr))) = false.
+Proof.
+intros var fl fr Heq.
+destruct (poly_of_formula_valid_compat fl) as [nl Hl].
+destruct (poly_of_formula_valid_compat fr) as [nr Hr].
+assert (Hs : linear (max nl nr) (reduce (poly_add (poly_of_formula fl) (poly_of_formula fr)))).
+  apply linear_reduce, poly_add_valid_compat; assumption.
+erewrite simpl_eval_compat; [|eassumption].
+rewrite (reduce_eval_compat (max nl nr)); [|apply poly_add_valid_compat; assumption].
+rewrite poly_add_compat, 2poly_of_formula_eval_compat, Heq.
+now apply xorb_nilpotent.
+Qed.
+
+Lemma reduce_poly_of_formula_simpl_goal : forall var fl fr,
+  simpl_eval var (reduce (poly_add (poly_of_formula fl) (poly_of_formula fr))) = false ->
+  formula_eval var fl = formula_eval var fr.
+Proof.
+intros var fl fr Heq.
+destruct (poly_of_formula_valid_compat fl) as [nl Hl].
+destruct (poly_of_formula_valid_compat fr) as [nr Hr].
+assert (Hs : linear (max nl nr) (reduce (poly_add (poly_of_formula fl) (poly_of_formula fr)))).
+  apply linear_reduce, poly_add_valid_compat; assumption.
+erewrite simpl_eval_compat in Heq; [|eassumption].
+rewrite (reduce_eval_compat (max nl nr)) in Heq; [|apply poly_add_valid_compat; assumption].
+rewrite poly_add_compat, 2poly_of_formula_eval_compat in Heq.
+apply xorb_eq; assumption.
+Qed.
+
 (* The completeness lemma *)
 
 (* Lemma reduce_poly_of_formula_complete : forall fl fr,

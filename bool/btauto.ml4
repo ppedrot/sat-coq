@@ -157,6 +157,7 @@ module Btauto = struct
   let witness = get_constant ["Btauto"; "Reflect"] "boolean_witness"
 
   let soundness = get_constant ["Btauto"; "Reflect"] "reduce_poly_of_formula_sound_alt"
+  let simpl_goal = get_constant ["Btauto"; "Reflect"] "reduce_poly_of_formula_simpl_goal"
 
   let rec convert = function
   | Bool.Var n -> lapp f_var [|CoqNat.of_int n|]
@@ -250,8 +251,53 @@ module Btauto = struct
       let msg = str "Cannot recognize a boolean equality" in
       Tacticals.tclFAIL 0 msg gl
 
+  let tac_reify gl =
+    let eq = Lazy.force eq in
+    let bool = Lazy.force Bool.typ in
+    let concl = Tacmach.pf_concl gl in
+    let t = decomp_term concl in
+    match t with
+    | Term.App (c, [|typ; tl; tr|])
+        when typ === bool && c === eq ->
+      let env = Env.empty () in
+      let fl = Bool.quote env tl in
+      let fr = Bool.quote env tr in
+      let env = Env.to_list env in
+      let fl = reify env fl in
+      let fr = reify env fr in
+      let changed_gl = Term.mkApp (c, [|typ; fl; fr|]) in
+      Tactics.change_in_concl None changed_gl gl
+    | _ ->
+      let msg = str "Cannot recognize a boolean equality" in
+      Tacticals.tclFAIL 0 msg gl
+
+  let tac_simpl_goal gl =
+    let eq = Lazy.force eq in
+    let bool = Lazy.force Bool.typ in
+    let concl = Tacmach.pf_concl gl in
+    let t = decomp_term concl in
+    match t with
+    | Term.App (c, [|typ; tl; tr|])
+        when typ === bool && c === eq ->
+      let env = Env.empty () in
+      let fl = Bool.quote env tl in
+      let fr = Bool.quote env tr in
+      let env = Env.to_list env in
+      let fl = reify env fl in
+      let fr = reify env fr in
+      let changed_gl = Term.mkApp (c, [|typ; fl; fr|]) in
+      Tacticals.tclTHENLIST [
+        Tactics.change_in_concl None changed_gl;
+        Tactics.apply (Lazy.force simpl_goal)
+      ] gl
+    | _ ->
+      let msg = str "Cannot recognize a boolean equality" in
+      Tacticals.tclFAIL 0 msg gl
+
 end
 
 TACTIC EXTEND _btauto_
-| [ "btauto" ] -> [ Btauto.tac ]
+(* | [ "btauto" ] -> [ Btauto.tac ] *)
+| [ "btauto_zabong" ] -> [ Btauto.tac_reify ]
+(* | [ "btauto_simplify" ] -> [ Btauto.tac_simpl_goal ] *)
 END

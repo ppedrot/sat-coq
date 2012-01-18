@@ -1,12 +1,17 @@
 Add Rec LoadPath "." as Btauto.
 
+Require Import Bool Btauto.
+
 Goal forall a : bool, (if a then a else negb a) = true.
 Proof.
 intros.
+btauto_zabong.
+apply Reflect.reduce_poly_of_formula_simpl_goal.
+simpl.
+reflexivity.
+Qed.
 
-change (
-
-btauto.
+Print Unnamed_thm.
 
 Goal forall a b c d e f g,
   (negb a && b && c && d && e && f && g) ||
@@ -19,7 +24,14 @@ Goal forall a b c d e f g,
   = false.
 Proof.
 intros.
-try btauto.
+btauto_zabong.
+apply Reflect.reduce_poly_of_formula_simpl_goal.
+remember (Algebra.simpl_eval) as eval; vm_compute.
+rewrite Heqeval; unfold Algebra.simpl_eval; simpl.
+simpl.
+
+vm_compute.
+simpl.
 Abort.
 
 Goal forall a b c : bool, c || b ||  a = b || negb ((negb a) && (negb c)).

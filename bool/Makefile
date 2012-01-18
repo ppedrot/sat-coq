@@ -116,7 +116,8 @@ endif
 #                    #
 ######################
 
-VFILES:=Reflect.v\
+VFILES:=Btauto.v\
+  Reflect.v\
   Algebra.v
 
 -include $(addsuffix .d,$(VFILES))

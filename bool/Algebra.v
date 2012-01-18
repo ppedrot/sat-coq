@@ -141,6 +141,12 @@ split.
   inversion 1; trivial.
 Qed.
 
+Definition max_var p :=
+match p with
+| Cst _ => 0
+| Poly p i q => S i
+end.
+
 Fixpoint eval var (p : poly) :=
 match p with
 | Cst c => c
@@ -258,6 +264,20 @@ match p with
   if decide (null qs) then reduce p
   else Poly (reduce p) i qs
 end.
+
+Fixpoint simpl_eval_aux (var : list bool) p k :=
+match p with
+| Cst c => c
+| Poly p i q =>
+  match k with
+  | 0 => false (* should not happen *)
+  | S k =>
+    if List.nth i var false then simpl_eval_aux var (poly_add p q) k
+    else simpl_eval_aux var p k
+  end
+end.
+
+Definition simpl_eval var p := simpl_eval_aux var p (max_var p).
 
 End Computational.
 
@@ -532,3 +552,35 @@ intros k p H; induction H; simpl.
 Qed.
 
 End Reduce.
+
+Section Simpl_eval.
+
+Lemma max_var_linear_spec : forall k p,
+  linear k p -> linear (max_var p) p.
+Proof.
+intros k p Hp; induction Hp.
+  now constructor.
+  now simpl; constructor; auto.
+Qed.
+
+Lemma simpl_eval_aux_compat : forall k p var, linear k p -> simpl_eval_aux var p k = eval var p.
+Proof.
+intros k; induction k as [k IH] using lt_wf_ind; intros p var Hp.
+inversion_clear Hp.
+  destruct k; simpl; reflexivity.
+  destruct k as [|k]; [exfalso; omega|]; simpl.
+  set (b := List.nth i var false); destruct b.
+    rewrite (IH k); [now apply poly_add_compat|omega|].
+    rewrite <- (Max.max_idempotent k); apply poly_add_linear_compat;
+    solve [apply (linear_le_compat i); [assumption|omega]].
+    rewrite (IH k); [now symmetry; apply xorb_false_r|omega|].
+    now apply (linear_le_compat i); [assumption|omega].
+Qed.
+
+Lemma simpl_eval_compat : forall k p var, linear k p -> simpl_eval var p = eval var p.
+Proof.
+intros k p var Hp; unfold simpl_eval.
+apply simpl_eval_aux_compat, (max_var_linear_spec k); assumption.
+Qed.
+
+End Simpl_eval.

@@ -270,6 +270,16 @@ rewrite poly_add_compat, 2poly_of_formula_eval_compat in Heq.
 apply xorb_eq; assumption.
 Qed.
 
+Lemma reduce_poly_of_formula_simpl_term : forall var f,
+  simpl_eval var (reduce (poly_of_formula f)) = formula_eval var f.
+Proof.
+intros var f.
+destruct (poly_of_formula_valid_compat f) as [n H].
+rewrite (simpl_eval_compat n); [|apply linear_reduce; assumption].
+rewrite (reduce_eval_compat n); [|assumption].
+now apply poly_of_formula_eval_compat.
+Qed.
+
 (* The completeness lemma *)
 
 (* Lemma reduce_poly_of_formula_complete : forall fl fr,

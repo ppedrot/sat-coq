@@ -296,8 +296,14 @@ module Btauto = struct
 
 end
 
-TACTIC EXTEND _btauto_
-(* | [ "btauto" ] -> [ Btauto.tac ] *)
-| [ "btauto_zabong" ] -> [ Btauto.tac_reify ]
-(* | [ "btauto_simplify" ] -> [ Btauto.tac_simpl_goal ] *)
+TACTIC EXTEND btauto
+| [ "btauto" ] -> [ Btauto.tac ]
+END
+
+TACTIC EXTEND btauto_reify
+| [ "btauto_reify" ] -> [ Btauto.tac_reify ]
+END
+
+TACTIC EXTEND btauto_simplify
+| [ "btauto_simplify" ] -> [ Btauto.tac_simpl_goal ]
 END
